@@ -11,7 +11,8 @@
 			},
 			"args": [
 				"-u",
-				"${workspaceFolder}/main.py"
+				"${workspaceFolder}/main.py",
+				"-default"
 			]
 		}
 	]

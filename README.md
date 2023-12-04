@@ -7,7 +7,7 @@ Image-Parser is a Python program designed as a feature for the web application C
 To run the program, enter the following command in the command line, with the following parameters:
 
 ```bash
-python main.py -m path_to_model.pth -t path_to_directory -o output_file.json -i path_to_image1 path_to_image2 ...
+python main.py -m path_to_model.pt -t path_to_directory -o output_file.json -i path_to_image1 path_to_image2 ...
 ```
 
 ### Parameters:
@@ -15,6 +15,15 @@ python main.py -m path_to_model.pth -t path_to_directory -o output_file.json -i 
 - `-t path_to_directory`: Path to the directory where temporary images will be stored.
 - `-o output_file.json`: Path to the file where the resulting data will be saved (e.g., `output.json`).
 - `-i path_to_image1 path_to_image2 ...`: Paths to the input images to be processed.
+
+### Image Formats
+The Image-Parser program supports the following image formats:
+
+- **JPEG (JPG):** Joint Photographic Experts Group format.
+- **PNG:** Portable Network Graphics format.
+
+Ensure that your input images are in either JPG or PNG format for optimal results.
+
 
 ## Contributions and Commitments
 If you would like to contribute to this project, please open an issue or create a pull request. We welcome improvements!

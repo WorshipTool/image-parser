@@ -1,6 +1,10 @@
 from song_detection import detect, prepare_model;
+import os
 
-prepare_model("yolo8best.pt")
+current_directory = os.path.dirname(os.path.abspath(__file__))
+parent_directory = os.path.dirname(current_directory)
+model_path = os.path.join(parent_directory, "yolo8best.pt")
+prepare_model(model_path)
 
 class TestClass:
     def test_detect1(self):

@@ -1,4 +1,4 @@
-import sys
+import os
 
 import song_detection
 import image_reader
@@ -22,7 +22,9 @@ else:
 print("\n")
 
 # Prepare model
-song_detection.prepare_model("yolo8best.pt")
+current_directory = os.path.dirname(os.path.abspath(__file__))
+model_path = os.path.join(current_directory, "yolo8best.pt")
+song_detection.prepare_model(model_path)
 print("\n")
 
 # Loop over input images

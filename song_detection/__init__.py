@@ -7,7 +7,10 @@ from .photo_perspective_fixer import PhotoPerspectiveFixer
 from ultralytics import YOLO 
 
 modelReady = False
-tempFolderPath = "tmp"
+
+current_directory = os.path.dirname(os.path.abspath(__file__))
+parent_directory = os.path.dirname(current_directory)
+tempFolderPath = os.path.join(parent_directory, "tmp")
 
 def prepare_model(modelPath: str):
     global model

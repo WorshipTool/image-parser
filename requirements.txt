@@ -5,3 +5,4 @@ pytesseract
 pandas
 requests
 ultralytics
+pytest

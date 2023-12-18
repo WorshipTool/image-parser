@@ -2,6 +2,7 @@ import json
 import sys
 
 def use_arguments():
+    return True
     return "-default" not in sys.argv
 
 

@@ -28,7 +28,7 @@ print("\n")
 # Loop over input images
 formattedResults = []
 for SAMPLE_IMAGE_PATH in INPUT_IMAGES_PATH:
-    detectedResults = song_detection.detect(SAMPLE_IMAGE_PATH, show=True)
+    detectedResults = song_detection.detect(SAMPLE_IMAGE_PATH, show=False)
 
     if len(detectedResults) == 0:
         continue

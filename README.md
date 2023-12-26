@@ -13,7 +13,7 @@ To install Image-Parser, use the following steps:
 
 2. Run the preparation script to download necessary files and install dependencies:
     ```bash
-    install -r requirements.txt && pip python prepare.py
+    pip install -r requirements.txt && pip python prepare.py
     ```
 
 

@@ -2,9 +2,11 @@ from PIL import Image
 import cv2 as cv
 import os
 
+from ultralytics import YOLO 
+
 from .custom_detect import CustomDetect
 from .photo_perspective_fixer import PhotoPerspectiveFixer
-from ultralytics import YOLO 
+
 
 modelReady = False
 
@@ -15,6 +17,11 @@ tempFolderPath = os.path.join(parent_directory, "tmp")
 def prepare_model(modelPath: str):
     global model
     global modelReady
+
+    if not os.path.exists(modelPath):
+        print("Model not found. Please first call prepare.py to download the model.")
+        return
+
     model = YOLO(modelPath)
     modelReady = True
 

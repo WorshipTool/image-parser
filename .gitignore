@@ -162,3 +162,4 @@ venv
 #.idea/
 
 tmp
+*.pt

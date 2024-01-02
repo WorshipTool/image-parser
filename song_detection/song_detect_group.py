@@ -1,8 +1,8 @@
 from song_detection.custom_detect import CustomDetect
-
+from typing import Optional
 
 class SongDetectGroup:
-    def __init__(self, title: CustomDetect | None, data: CustomDetect | None, sheet: CustomDetect | None):
+    def __init__(self, title: Optional[CustomDetect], data: Optional[CustomDetect], sheet: Optional[CustomDetect]):
         self.title = title
         self.data = data
         self.sheet = sheet

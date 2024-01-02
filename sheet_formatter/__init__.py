@@ -217,12 +217,19 @@ def read_word_list_to_lines(wordData: list[ReadWordData]) -> list[Line]:
             outputLines[i].words.append(word)
     return outputLines
 
-def format(input: list[ReadWordData], inputImagePath: str, cropedImageData) -> Sheet:
-    lines = read_word_list_to_lines(input)
-
+def get_title(titleData: list[ReadWordData]) -> str:
+    lines = read_word_list_to_lines(titleData)
     sections = split_lines_to_sections(lines)
-
     title, sections = get_title_from_sections(sections)
+    return title
 
+def format(titleData: list[ReadWordData], dataData:list[ReadWordData], inputImagePath: str, cropedImageData) -> Sheet:
+
+    title = get_title(titleData)
+
+
+    lines = read_word_list_to_lines(dataData)
+    sections = split_lines_to_sections(lines)
     data = sections_to_formatted_string(sections)
+    
     return Sheet(title, data, inputImagePath, cropedImageData)

@@ -2,8 +2,9 @@ from PIL import Image
 import cv2 as cv
 import os
 
-from ultralytics import YOLO 
+from ultralytics import YOLO
 
+from .song_detect_group import SongDetectGroup, groupCustomDetect 
 from .custom_detect import CustomDetect
 from .photo_perspective_fixer import PhotoPerspectiveFixer
 
@@ -30,7 +31,7 @@ def prepare_model(modelPath: str):
         os.makedirs(tempFolderPath)
 
 
-def detect(imagePath: str,show: bool = False) -> list[CustomDetect]:
+def detect(imagePath: str,show: bool = False) -> list[SongDetectGroup]:
     if not modelReady:
         print("Model not ready. Please call prepare_model() first.")
         return []
@@ -44,16 +45,16 @@ def detect(imagePath: str,show: bool = False) -> list[CustomDetect]:
 
 
 
-    if show:
-        Image.open(FIXED_INPUT_IMAGE_PATH).show()
-        
     # Detect
     results = model.predict(FIXED_INPUT_IMAGE_PATH)
+    
     formattedResults : list[CustomDetect] = []
     for result in results:
         for box in result.boxes:
             formattedResults.append(CustomDetect(box, result))
 
+
+        
     for result in formattedResults:
         if show:
             windowName = "image" + str(result.bounds.left) + str(result.bounds.top)
@@ -61,14 +62,37 @@ def detect(imagePath: str,show: bool = False) -> list[CustomDetect]:
             
             
 
+        
+
+    # Group results
+    songDetectGroups = groupCustomDetect(formattedResults)
+
+
+    if show:
+        image = cv.imread(FIXED_INPUT_IMAGE_PATH)
+        print(image.shape, results[0].orig_img.shape)
+        renderResults(image, songDetectGroups, strokeWidth=3, fontSize=2)
+        cv.imshow("Input-image", image)
+
     if show:
         cv.waitKey()
-
-    #filter out non-sheet results
-    formattedResults = list(filter(lambda x: x.label == "sheet", formattedResults))
-    return formattedResults
+    return songDetectGroups
 
 
+def renderResults(image, results: list[SongDetectGroup], strokeWidth=2, fontSize=1):
+    for group in results:
+        for box in [group.title, group.data, group.sheet]:
+            if not box:
+                continue
+            bounds = box.bounds
+            cv.rectangle(image, (int(bounds.left), int(bounds.top)),
+                        (int(box.bounds.left + box.bounds.width), int(box.bounds.top + box.bounds.height)), (255, 0, 0), strokeWidth)
+            cv.putText(image, f"{box.label}",
+                        (int(box.bounds.left), int(box.bounds.top) - 10),
+                        cv.FONT_HERSHEY_PLAIN, fontSize, (255, 0, 0), strokeWidth)
+
+    return image
+    
 
 
 def launchRealTimeDetection():
@@ -85,15 +109,8 @@ def launchRealTimeDetection():
 
         # Detect
         results = model.predict(frame)
-        # # Draw results
-        for result in results:
-            for box in result.boxes:
-                cv.rectangle(frame, (int(box.xyxy[0][0]), int(box.xyxy[0][1])),
-                            (int(box.xyxy[0][2]), int(box.xyxy[0][3])), (255, 0, 0), 2)
-                cv.putText(frame, f"{result.names[int(box.cls[0])]}",
-                            (int(box.xyxy[0][0]), int(box.xyxy[0][1]) - 10),
-                            cv.FONT_HERSHEY_PLAIN, 1, (255, 0, 0), 1)
-
+        # Draw results
+        frame = renderResults(frame, results)
         # Display the resulting frame
         cv.imshow('frame', frame)
 

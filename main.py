@@ -37,13 +37,28 @@ for SAMPLE_IMAGE_PATH in INPUT_IMAGES_PATH:
 
 
     for detectedResult in detectedResults:
-        if detectedResult.label != "sheet":
-            continue
-        print(str(len(formattedResults)+1) + ". sheet detected")
-        readData = image_reader.read(detectedResult.image)
-        formatted = sheet_formatter.format(readData, SAMPLE_IMAGE_PATH, detectedResult.image)
+        titleReadData = image_reader.read(detectedResult.title.image) if detectedResult.title is not None else None
+        dataReadData = image_reader.read(detectedResult.data.image) if detectedResult.data is not None else None
 
+        if(titleReadData is None or dataReadData is None):
+            sheetReadData = image_reader.read(detectedResult.sheet.image) if detectedResult.sheet is not None else None
+            if(sheetReadData is not None):
+                if(titleReadData is None):
+                    titleReadData = sheetReadData
+                
+                if(dataReadData is None):
+                    dataReadData = sheetReadData
+
+            if(titleReadData is None and dataReadData is not None):
+                titleReadData = dataReadData
+
+            
+
+        formatted = sheet_formatter.format(titleReadData, dataReadData, SAMPLE_IMAGE_PATH, detectedResult.image)
+
+        print(str(len(formattedResults)+1) + ". sheet detected")
         formattedResults.append(formatted.to_json())
+
 
 # Write output to json file
 common.write_json_to_file(formattedResults, OUTPUT_JSON_PATH)

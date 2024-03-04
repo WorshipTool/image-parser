@@ -32,6 +32,7 @@ formattedResults = []
 for SAMPLE_IMAGE_PATH in INPUT_IMAGES_PATH:
     detectedResults = song_detection.detect(SAMPLE_IMAGE_PATH, show=False)
 
+
     if len(detectedResults) == 0:
         continue
 
@@ -53,6 +54,8 @@ for SAMPLE_IMAGE_PATH in INPUT_IMAGES_PATH:
                 titleReadData = dataReadData
 
             
+        if(titleReadData is None or dataReadData is None):
+            continue
 
         formatted = sheet_formatter.format(titleReadData, dataReadData, SAMPLE_IMAGE_PATH, detectedResult.image)
 

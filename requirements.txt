@@ -1,8 +1,8 @@
-torch
-torchvision
-torchaudio
-pytesseract
-pandas
-requests
-ultralytics
-pytest
+torch==2.2.1
+torchaudio==2.2.1
+torchvision==0.17.1
+pytesseract==0.3.10
+pandas==2.2.1
+requests==2.31.0
+ultralytics==8.1.29
+pytest==8.1.1

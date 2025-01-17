@@ -1,10 +1,6 @@
 import json
 import sys
 
-def use_arguments():
-    return True
-    return "-default" not in sys.argv
-
 
 def write_json_to_file(data, file_path):
     jsonString = json.dumps(data, ensure_ascii=False)
@@ -35,4 +31,3 @@ def load_argument (key: str, allKeys: list[str], returnMultipleValues: bool = Fa
     if len(values) == 0:
         return None
     return values
-    

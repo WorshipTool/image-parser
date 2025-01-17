@@ -3,14 +3,32 @@ from flasgger import Swagger
 import os
 import uuid
 
+
+PORT=os.getenv("PORT", 5000)
+
+# Connect to bridge
+import bridge
+bridge.start(PORT)
+
+
 from main import parse_images
 
 app = Flask(__name__)
-swagger = Swagger(app)
 
 UPLOAD_FOLDER = 'tmp/uploads'  # Složka pro uložení souborů
 app.config['TEMP_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # Maximální velikost souboru: 16 MB
+
+# Set the maximum file size to 50MB
+MEGABYTE = (2 ** 10) ** 2
+app.config['MAX_CONTENT_LENGTH'] = 50 * MEGABYTE  
+app.config['MAX_FORM_MEMORY_SIZE'] = 50 * MEGABYTE
+
+# Setup Swagger
+swagger_config = {
+    "specs_route": "/docs/",
+}
+swagger = Swagger(app, swagger_config, merge=True)
+
 
 
 def generate_filename(filename):
@@ -46,29 +64,39 @@ def upload_file():
                   type: string
                   description: Název nahraného souboru
     """
+
+    files = request.files
     # Zkontrolujeme, zda soubor je součástí žádosti
-    if 'file' not in request.files:
+    if 'file' not in files:
         return jsonify(message="No file part"), 400
 
-    file = request.files['file']
     
     # Pokud soubor nemá název, vrátíme chybu
-    if file.filename == '':
+    if len(files) == 0:
         return jsonify(message="No selected file"), 400
     
-    if not file:
-        return jsonify(message="No file part"), 400
-    
     # Uložíme soubor do složky
-    filename = os.path.join(app.config['TEMP_FOLDER'], generate_filename(file.filename))
-    file.save(filename)
+    createdFiles = []
+    for file in files.getlist('file'):
+        filename = os.path.join(app.config['TEMP_FOLDER'], generate_filename(file.filename))
+        file.save(filename)
+        createdFiles.append(filename)
 
     # Zavoláme funkci pro zpracování obrázku
-    result = parse_images([filename], useAi=True)
+    result = parse_images(createdFiles, useAi=False)
 
-    # Delete the uploaded file
-    os.remove(filename)
-    
+    # Delete the uploaded files
+    for file in createdFiles:
+        os.remove(file)
+
+    # Replace inputImagePath in result items with the original filename
+    for item in result:
+        # Find original filename, index in createdFiles is the same as the original in files
+        index = createdFiles.index(item["inputImagePath"])
+        originalFile = files.getlist('file')[index]
+        item["inputImagePath"] = originalFile.filename
+
+
 
     return jsonify(result), 200
 
@@ -78,4 +106,4 @@ def upload_file():
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-app.run(debug=True, port=5000)
+app.run(debug=True, port=PORT)

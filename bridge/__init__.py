@@ -1,5 +1,4 @@
 import os
-from dotenv import load_dotenv
 import requests
 import schedule
 import time
@@ -7,6 +6,7 @@ import threading
 
 
 # load env
+from dotenv import load_dotenv
 load_dotenv()
 
 bridgeUrl = os.getenv("BRIDGE_URL")

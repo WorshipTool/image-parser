@@ -4,6 +4,11 @@ import os
 import uuid
 
 
+# load envs
+from dotenv import load_dotenv
+load_dotenv()
+
+
 PORT=os.getenv("PORT", 5000)
 
 # Connect to bridge

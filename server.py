@@ -21,7 +21,9 @@ from main import parse_images
 
 app = Flask(__name__)
 
-UPLOAD_FOLDER = 'tmp/uploads'  # Složka pro uložení souborů
+current_directory = os.path.dirname(os.path.abspath(__file__))
+
+UPLOAD_FOLDER = os.path.join(current_directory, "uploads")
 app.config['TEMP_FOLDER'] = UPLOAD_FOLDER
 
 # Set the maximum file size to 50MB

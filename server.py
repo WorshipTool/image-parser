@@ -9,7 +9,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-PORT=os.getenv("PORT", 5000)
+PORT = os.getenv("PORT", 5000)
+HOST = os.getenv("HOST", "0.0.0.0")
 
 # Connect to bridge
 import bridge
@@ -129,4 +130,5 @@ def is_available():
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-app.run(debug=True, port=PORT)
+
+app.run(debug=True, port=PORT, host=HOST)

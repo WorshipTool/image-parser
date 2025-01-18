@@ -10,7 +10,7 @@ load_dotenv()
 
 
 PORT = os.getenv("PORT", 5000)
-HOST = os.getenv("HOST", "0.0.0.0")
+HOST = os.getenv("HOST", None)
 
 # Connect to bridge
 import bridge

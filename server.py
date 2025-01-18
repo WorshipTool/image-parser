@@ -100,7 +100,25 @@ def upload_file():
 
     return jsonify(result), 200
 
-
+@app.route('/is-available', methods=['GET'])
+def is_available():
+    """
+    Check if the server is available
+    This endpoint allows you to check if the server is available.
+    ---
+    responses:
+      200:
+        description: Server is available
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: boolean
+                  description: Server is available
+    """
+    return jsonify(isAvailable=True), 200
 
 # Vytvoříme složku pro uploady, pokud neexistuje
 if not os.path.exists(UPLOAD_FOLDER):

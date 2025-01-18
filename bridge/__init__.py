@@ -34,8 +34,10 @@ def tick():
 
             if not response.ok:
                 print("Failed to tick", response.text)
+                id = None
                 return
     except Exception as e:
+        id = None
         print("Failed to tick", e)
 
 def register():

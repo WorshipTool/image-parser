@@ -34,6 +34,7 @@ app.config['MAX_FORM_MEMORY_SIZE'] = 50 * MEGABYTE
 # Setup Swagger
 swagger_config = {
     "specs_route": "/docs/",
+    "static_url_path":"/docs-json"
 }
 swagger = Swagger(app, swagger_config, merge=True)
 

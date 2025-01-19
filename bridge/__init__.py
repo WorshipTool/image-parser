@@ -15,6 +15,8 @@ registerEndpointUrl = bridgeUrl + "/register"
 
 bridgeServiceName = os.getenv("BRIDGE_SERVICE_NAME")
 BRIDGE_SERVICE_TYPE = "parser"
+BRIDGE_PUBLIC_ADDRESS = os.getenv("BRIDGE_PUBLIC_ADDRESS", None)
+
 
 id: str = None
 port: int = None
@@ -47,7 +49,8 @@ def register():
             "type": BRIDGE_SERVICE_TYPE,
             "name": bridgeServiceName,
             "connectVia": {
-                "port": port
+                "port": port,
+                "publicAddress": BRIDGE_PUBLIC_ADDRESS
             }
         })
 

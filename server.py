@@ -21,6 +21,11 @@ from main import parse_images
 
 app = Flask(__name__)
 
+
+# Enable CORS for all routes
+from flask_cors import CORS
+CORS(app)
+
 current_directory = os.path.dirname(os.path.abspath(__file__))
 
 UPLOAD_FOLDER = os.path.join(current_directory, "uploads")

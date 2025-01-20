@@ -107,6 +107,8 @@ def upload_file():
         for file in createdFiles:
             os.remove(file)
 
+        print(e)
+
         return jsonify(message=str(e)), 500
 
 

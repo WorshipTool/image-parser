@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify
-from flasgger import Swagger
 import os
 import uuid
 
@@ -37,9 +36,18 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * MEGABYTE
 app.config['MAX_FORM_MEMORY_SIZE'] = 50 * MEGABYTE
 
 # Setup Swagger
+from flasgger import Swagger
 swagger_config = {
     "specs_route": "/docs/",
-    "static_url_path":"/docs-json"
+    # "static_url_path":"/docs-json"
+    "specs": [
+        {
+            "endpoint": 'apispec_1',
+            "route": '/docs-json',
+            "rule_filter": lambda rule: True,  # all in
+            "model_filter": lambda tag: True,  # all in
+        }
+    ],
 }
 swagger = Swagger(app, swagger_config, merge=True)
 

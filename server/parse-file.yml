@@ -1,0 +1,19 @@
+
+  Parse song from file (image)
+  This endpoint allows you to upload an image file and parse it to get the song data.
+  ---
+  parameters:
+    - name: file
+      in: formData
+      type: file
+      collectionFormat: multi
+      description: Soubor(y), které budou nahrány
+      required: true
+    - name: useAi
+      in: query
+      type: boolean
+      description: Použít AI pro pokročilé parsování
+      required: false
+  responses:
+    200:
+      description: Soubor byl úspěšně nahrán

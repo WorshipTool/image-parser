@@ -1,0 +1,14 @@
+Check if the server is available
+This endpoint allows you to check if the server is available.
+---
+responses:
+    200:
+        description: Server is available
+        content:
+            application/json:
+                schema:
+                    type: object
+                    properties:
+                        message:
+                            type: boolean
+                            description: Server is available

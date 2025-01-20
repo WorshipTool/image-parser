@@ -66,7 +66,6 @@ def generate_filename(filename):
 def upload_file():
     
     useAi = request.args.get('useAi', default="false").lower() == "true"
-    print("useAi", useAi)
 
 
     files = request.files.getlist('file')
@@ -84,12 +83,18 @@ def upload_file():
             createdFiles.append(filename)
 
 
+        print (f"Processing {len(createdFiles)} files")
+
         # Zavoláme funkci pro zpracování obrázku
         result = parse_images(createdFiles, useAi=useAi)
+
+        print (f"Processed {len(createdFiles)} files")
 
         # Delete the uploaded files
         for file in createdFiles:
             os.remove(file)
+
+        print (f"Deleted {len(createdFiles)} files")
 
         # Replace inputImagePath in result items with the original filename
         for item in result:
@@ -103,11 +108,13 @@ def upload_file():
         return jsonify(result), 200
     except Exception as e:
 
+        print("AAAAA")
         # Delete the uploaded files
         for file in createdFiles:
             os.remove(file)
 
         print(e)
+        print("BBBBB")
 
         return jsonify(message=str(e)), 500
 

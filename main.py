@@ -19,7 +19,7 @@ defaultOutputPath = os.path.join("tmp", "op.json")
 defaultFormattedOutputPath = os.path.join("tmp", "fr.json")
 
 
-def parse_images(inputImages: list[str], outputPath: str = defaultOutputPath, useAi: bool = False): 
+def parse_images(inputImages: list[str], outputPath: str = None, useAi: bool = False): 
     if(useAi):
         print("Detecting with AI (Good 👍 )")
     else:
@@ -81,8 +81,10 @@ def parse_images(inputImages: list[str], outputPath: str = defaultOutputPath, us
                 formattedResults.append(imageResult)
 
 
-    # Write output to json file
-    common.write_json_to_file(formattedResults, outputPath)
+    if outputPath is not None:
+        # Write output to json file
+        common.write_json_to_file(formattedResults, outputPath)
+        
     return formattedResults
 
 

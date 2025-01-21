@@ -1,3 +1,4 @@
+from typing import Generator
 from PIL import Image
 import cv2 as cv
 import os
@@ -31,7 +32,10 @@ def prepare_model(modelPath: str):
         os.makedirs(tempFolderPath)
 
 
-def detect(imagePath: str,show: bool = False) -> list[SongDetectGroup]:
+def detect(imagePath: str,show: bool = False) -> Generator[int, None, list[SongDetectGroup]]:
+
+    yield 0; # 0% progress
+
     if not modelReady:
         print("Model not ready. Please call prepare_model() first.")
         return []
@@ -44,9 +48,13 @@ def detect(imagePath: str,show: bool = False) -> list[SongDetectGroup]:
     cv.imwrite(FIXED_INPUT_IMAGE_PATH, perspectiveFixedImage)
 
 
+    yield 20; # 20% progress
 
     # Detect
     results = model.predict(FIXED_INPUT_IMAGE_PATH)
+
+
+    yield 70; # 70% progress
     
     formattedResults : list[CustomDetect] = []
     for result in results:
@@ -62,6 +70,7 @@ def detect(imagePath: str,show: bool = False) -> list[SongDetectGroup]:
             
             
 
+    yield 90; # 90% progress
         
 
     # Group results
@@ -76,6 +85,8 @@ def detect(imagePath: str,show: bool = False) -> list[SongDetectGroup]:
 
     if show:
         cv.waitKey()
+
+    yield 100
     return songDetectGroups
 
 

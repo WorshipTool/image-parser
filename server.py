@@ -1,4 +1,5 @@
-from flask import Flask, request, jsonify
+import time
+from flask import Flask, Response, request, jsonify
 import os
 import uuid
 
@@ -61,8 +62,14 @@ def generate_filename(filename):
     
     return random_filename
 
+@app.route('/is-available', methods=['GET'])
+@swag_from("server/swagger/is-available.yml")
+def is_available():
+    return jsonify(isAvailable=True), 200
+
+
 @app.route('/parse-file', methods=['POST'])
-@swag_from("server/parse-file.yml")
+@swag_from("server/swagger/parse-file.yml")
 def upload_file():
     
     useAi = request.args.get('useAi', default="false").lower() == "true"
@@ -83,18 +90,27 @@ def upload_file():
             createdFiles.append(filename)
 
 
-        print (f"Processing {len(createdFiles)} files")
 
         # Zavoláme funkci pro zpracování obrázku
-        result = parse_images(createdFiles, useAi=useAi)
+        parseGen = parse_images(createdFiles, useAi=useAi)
+        result = None
 
-        print (f"Processed {len(createdFiles)} files")
+        # Handle generator stream
+        while True:
+            try:
+                progress = next(parseGen)
+                print("Průběh parsu:", progress)
+
+                # yield progress
+            except StopIteration as e:
+                result = e.value
+                break
+
 
         # Delete the uploaded files
         for file in createdFiles:
             os.remove(file)
 
-        print (f"Deleted {len(createdFiles)} files")
 
         # Replace inputImagePath in result items with the original filename
         for item in result:
@@ -118,16 +134,21 @@ def upload_file():
 
         return jsonify(message=str(e)), 500
 
-
-@app.route('/is-available', methods=['GET'])
-@swag_from("server/is-available.yml")
-def is_available():
-    
-    return jsonify(isAvailable=True), 200
-
 # Vytvoříme složku pro uploady, pokud neexistuje
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
+
+@app.route('/testStream', methods=['GET'])
+def textStream():
+    def generate():
+        for i in range(100):
+            # wait for a while
+            time.sleep(0.1)
+            yield str(i)
+        yield "DONE"
+    return Response(generate(), mimetype='text/event-stream')
+
+
 
 
 app.run(debug=True, port=PORT, host=HOST)

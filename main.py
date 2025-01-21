@@ -65,10 +65,10 @@ def parse_images(inputImages: list[str], outputPath: str = None, useAi: bool = F
             imageResults.append(formatted.to_json())
         
 
-        common.write_json_to_file(imageResults, defaultFormattedOutputPath)
 
         if(useAi):
             print("\nAnalyzing with AI...")
+            common.write_json_to_file(imageResults, defaultFormattedOutputPath)
             response = ai.analyze_image(SAMPLE_IMAGE_PATH, defaultFormattedOutputPath)
             
             #add response items to formattedResults and .to_json() them
@@ -84,7 +84,7 @@ def parse_images(inputImages: list[str], outputPath: str = None, useAi: bool = F
     if outputPath is not None:
         # Write output to json file
         common.write_json_to_file(formattedResults, outputPath)
-        
+
     return formattedResults
 
 

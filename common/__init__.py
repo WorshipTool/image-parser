@@ -1,8 +1,11 @@
 import json
 import sys
+import os
 
 
 def write_json_to_file(data, file_path):
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    
     jsonString = json.dumps(data, ensure_ascii=False)
     with open(file_path, 'w') as outfile:
         outfile.write(jsonString)

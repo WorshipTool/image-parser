@@ -167,22 +167,25 @@ def get_job_status_stream():
 
     return Response(stream(), mimetype='text/event-stream')
 
+@app.route("/get-job-result", methods=['GET'])
+@swag_from("server/swagger/get-job-status.yml")
+def get_job_result():
+    job_id = request.args.get('id')
+    job = get_job(job_id)
+
+    if job is None:
+        return jsonify(message="Job not found"), 404
+
+    if job.is_finished:
+        return jsonify(job.result), 200
+
+    return jsonify(message="Job not finished yet"), 202
+
+
 
 # Vytvoříme složku pro uploady, pokud neexistuje
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
-
-@app.route('/testStream', methods=['GET'])
-def textStream():
-    def generate():
-        for i in range(100):
-            # wait for a while
-            time.sleep(0.1)
-            yield str(i)
-        yield "DONE"
-    return Response(generate(), mimetype='text/event-stream')
-
-
 
 
 app.run(debug=True, port=PORT, host=HOST)

@@ -113,6 +113,9 @@ def parse_file_stream():
 
     job = add_to_queue(paths, useAi)
 
+    job.meta["useAi"] = useAi
+    job.save_meta()
+
     return jsonify(id=job.id), 200
 
 # Format func, job progress
@@ -137,9 +140,7 @@ def getProgressData(job):
         "status": status
     }
     eventName = "progress"
-    res = f"event: {eventName}\ndata: {data}"
-
-    print("Progress", res)
+    res = f"event: {eventName}\ndata: {data}\n\n"
     return res
 
 @app.route("/get-job-status-stream", methods=['GET'])
@@ -157,7 +158,15 @@ def get_job_status_stream():
             job.refresh()
             yield getProgressData(job)
             if job.is_finished:
-                yield f"event: final\ndata: {job.result}\n\n"
+
+                useAi = job.meta.get("useAi", False)
+
+                data = {
+                    "sheets": job.result,
+                    "useAi": useAi
+                }
+
+                yield f"event: final\ndata: {data}\n\n"
                 break
             if job.is_failed:
                 yield f"data: {job.exc_info}\n\n"
@@ -175,9 +184,14 @@ def get_job_result():
 
     if job is None:
         return jsonify(message="Job not found"), 404
+    
+    useAi = job.meta.get("useAi", False)
 
     if job.is_finished:
-        return jsonify(job.result), 200
+        return jsonify({
+            "sheets": job.result,
+            "useAi": useAi
+        }), 200
 
     return jsonify(message="Job not finished yet"), 202
 

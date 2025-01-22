@@ -13,3 +13,6 @@ flasgger==0.9.7.1
 python-dotenv==1.0.1
 schedule==1.2.2
 openai==1.59.7
+rq==2.1.0
+redis==5.2.1
+rq-dashboard==0.8.2.2

@@ -1,0 +1,9 @@
+
+  Parse song from file (image)
+  This endpoint allows you to upload an image file and parse it to get the song data.
+  ---
+  parameters:
+    - name: id
+      in: query
+      type: string
+      required: true

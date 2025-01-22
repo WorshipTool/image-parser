@@ -119,14 +119,21 @@ def parse_images(inputImages: list[str], outputPath: str = None, useAi: bool = F
 
 
         if(useAi):
-            print("\nAnalyzing with AI...")
-            common.write_json_to_file(imageResults, defaultFormattedOutputPath)
-            response = ai.analyze_image(SAMPLE_IMAGE_PATH, defaultFormattedOutputPath)
-            
-            #add response items to formattedResults and .to_json() them
-            for sheet in response:
-                formattedResults.append(sheet.to_json())
-            
+            try:
+                print("\nAnalyzing with AI...")
+                common.write_json_to_file(imageResults, defaultFormattedOutputPath)
+                response = ai.analyze_image(SAMPLE_IMAGE_PATH, defaultFormattedOutputPath)
+                
+                #add response items to formattedResults and .to_json() them
+                for sheet in response:
+                    formattedResults.append(sheet.to_json())
+            except Exception as e:
+                print("Error while working with AI...")
+                
+                # imageResult merge to formattedResults
+                for imageResult in imageResults:
+                    formattedResults.append(imageResult)
+
         else:
             # imageResult merge to formattedResults
             for imageResult in imageResults:

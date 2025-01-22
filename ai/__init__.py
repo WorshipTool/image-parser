@@ -43,7 +43,12 @@ def send_image_and_question(image_path, question):
             }
         ],
     )
-    return response.choices[0].message.content
+    ret = response.choices[0].message.content
+
+    if ret is None:
+        raise ValueError("No response from OpenAI API.")
+
+    return ret
 
 def fix_json_input(malformed_json_string):
     # Odstranění přebytečných čárek před uzavíracími závorkami

@@ -12,8 +12,8 @@ PORT = os.getenv("PORT", 5000)
 HOST = os.getenv("HOST", None)
 
 # Connect to bridge
-# import bridge
-# bridge.start(PORT)
+import bridge
+bridge.start(PORT)
 
 
 app = Flask(__name__)

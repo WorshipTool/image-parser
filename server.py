@@ -1,8 +1,6 @@
 import time
-from typing import Generator
 from flask import Flask, Response, request, jsonify
 import os
-import uuid
 
 
 # load envs
@@ -14,11 +12,9 @@ PORT = os.getenv("PORT", 5000)
 HOST = os.getenv("HOST", None)
 
 # Connect to bridge
-import bridge
-bridge.start(PORT)
+# import bridge
+# bridge.start(PORT)
 
-
-from main import parse_images
 
 app = Flask(__name__)
 
@@ -202,4 +198,6 @@ if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
 
+
+# Run app
 app.run(debug=True, port=PORT, host=HOST)

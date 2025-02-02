@@ -3,7 +3,6 @@
 import os
 from typing import Generator
 
-from .helper import generate_filename
 from main import parse_images
 from constants import TEMP_FOLDER
 

@@ -7,6 +7,11 @@ cd $SCRIPT_DIR
 
 cd ..
 
+# Nastavení cesty k Pythonu a projektu
+export PATH="$SCRIPT_DIR/../venv/bin:$PATH"
+export PYTHONPATH="$SCRIPT_DIR/..:$PYTHONPATH"
+
 source venv/bin/activate
+
 
 rq worker --with-scheduler $QUEUE_NAME

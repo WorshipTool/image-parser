@@ -1,0 +1,83 @@
+# OCR -> GPT workflow (pro Claude Code)
+
+Tento dokument popisuje doporučený algoritmus pro převod obrázků písní (text + akordy) do čistého textového formátu pomocí Pythonu, OCR a GPT (včetně Vision podle potřeby).
+
+---
+
+## 1. Hlavní pipeline
+
+1. Načíst obrázek a předzpracovat (OpenCV):
+   - převod na grayscale
+   - odstranění šumu
+   - threshold (ideálně Otsu)
+   - narovnání / ořez, pokud je fotka křivá
+
+2. Spustit Tesseract:
+   - použít `image_to_data`
+   - získat text, bounding boxy, confidence
+
+3. Složit slova do řádků:
+   - seskupení podle Y souřadnic
+   - pro každý řádek vytvořit list slov s jejich `text`, `conf`, `x`, `y`, `w`, `h`
+
+4. Rozlišit typ řádku:
+   - akordový řádek vs. textový řádek
+   - pomocí regexu na akordy: `^[A-H][#b]?(mi|m|sus2|sus4|dim|maj7|7|add[0-9])*?$`
+
+5. Vyhodnotit kvalitu OCR pro každý řádek pomocí skóre (0–1):
+   - `conf_avg`: průměrná confidence slov
+   - `garbage_ratio`: podíl nepovolených znaků
+   - `valid_word_ratio`:
+       - akordový řádek: kolik „slov“ odpovídá akordu
+       - textový řádek: kolik slov obsahuje samohlásku
+   - penalizace velmi krátkých řádků
+   - celkový výpočet:
+        score = 0.5 * conf_norm + 0.3 * valid_word_ratio + 0.2 * (1 - garbage_ratio)
+
+6. Rozhodnutí, zda použít GPT jen s textem, nebo GPT Vision:
+   - HIGH = 0.8
+   - LOW  = 0.4
+
+   - pokud score >= HIGH:
+       → použít GPT **jen s textem**
+   - pokud score <= LOW:
+       → použít GPT **s obrázkem řádku (Vision)**
+   - jinak:
+       → použít text-only a případně fallback Vision
+
+7. Každý řádek:
+   - akordy a text se opraví GPT:
+       - opravit OCR chyby
+       - sjednotit formát
+       - nic si nevymýšlet, jen opravit
+
+8. Finální spojení:
+   - akordové řádky nad textovými
+   - podle X souřadnic vložit akordy před odpovídající slova
+   - export do interního formátu (např. {verse}, {chorus}, [C], atd.)
+
+---
+
+## 2. Pseudokód rozhodování
+
+```
+for line in lines:
+    score = score_line(line.words, line.is_chord)
+
+    if score >= HIGH:
+        fixed = gpt_fix_text(line.text)
+    elif score <= LOW:
+        cropped_img = crop_line_image(line.bounding_boxes)
+        fixed = gpt_vision_fix(cropped_img)
+    else:
+        fixed = gpt_fix_text(line.text)
+        if looks_broken(fixed):
+            cropped_img = crop_line_image(...)
+            fixed = gpt_vision_fix(cropped_img)
+```
+
+---
+
+## 3. Poznámky
+
+- Vision používej jen na řádky s nízkou kvalitou OCR.

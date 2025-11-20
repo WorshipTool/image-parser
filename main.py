@@ -31,6 +31,8 @@ def parse_images(inputImages: list[str], outputPath: str = None, useAi: bool = F
 
     ic = len(inputImages)
 
+    
+
     # Loop over input images
     formattedResults = []
     for i, SAMPLE_IMAGE_PATH in enumerate(inputImages):
@@ -44,6 +46,7 @@ def parse_images(inputImages: list[str], outputPath: str = None, useAi: bool = F
         # Detect with generator stream process
         detectGen = song_detection.detect(SAMPLE_IMAGE_PATH, show=False)
 
+        
         detectedResults = None
 
         # Handle generator stream

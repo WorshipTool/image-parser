@@ -1,44 +1,53 @@
 # Image-Parser
 
-## Description
-Image-Parser is a Python program designed as a feature for the web application Chvalotce.cz, serving as a database of Christian songs. All songs are stored in a specific format for proper subsequent display. The purpose of this Python program is to identify a song in a photograph, read it, and convert it to the specified format. Its primary functionality lies in the ability to extract songs from images.
+## Popis
+Image-Parser je Python program pro automatickou extrakci křesťanských písní z fotografií. Program detekuje písně na obrázku, rozpozná text a převede ho do strukturovaného JSON formátu pro webovou aplikaci Chvalotce.cz.
 
-## Installation
-To install Image-Parser, use the following steps:
-
-1. Clone the repository and navigate to the project directory:
-   ```bash
-   git clone https://github.com/WorshipTool/image-parser.git && cd image-parser
-   ```
-
-2. Run the preparation script to download necessary files and install dependencies:
-    ```bash
-    pip install -r requirements.txt && pip python prepare.py
-    ```
-
-
-## Usage
-To run the program, enter the following command in the command line, with the following parameters:
-
+## Instalace
 ```bash
-python main.py -o output_file.json -i path_to_image1 path_to_image2 ...
+git clone https://github.com/WorshipTool/image-parser.git && cd image-parser
+pip install -r requirements.txt
+python prepare.py
 ```
 
-### Parameters:
-- `-o output_file.json`: Path to the file where the resulting data will be saved (e.g., `output.json`).
-- `-i path_to_image1 path_to_image2 ...`: Paths to the input images to be processed.
+## Použití
+```bash
+python main.py -o output.json -i cesta_k_obrazku.jpg
+python main.py -o output.json -i obrazek1.jpg obrazek2.png -ai  # s AI analýzou
+```
 
-### Image Formats
-The Image-Parser program supports the following image formats:
+**Podporované formáty:** JPG, PNG
 
-- **JPEG (JPG):** Joint Photographic Experts Group format.
-- **PNG:** Portable Network Graphics format.
+## Jak to funguje
 
-Ensure that your input images are in either JPG or PNG format for optimal results.
+### 1. Předzpracování obrazu
+- **Detekce perspektivy:** Oprava rotace a perspektivního zkreslení pomocí `PhotoPerspectiveFixer`
+- Normalizace orientace dokumentu pro lepší detekci
 
+### 2. Detekce objektů (YOLO model)
+Program používá vlastní natrénovaný **YOLOv8 model** (`yolo8best.pt`), který detekuje tři typy objektů:
+- **`sheet`** - celá stránka písně (obsahuje vše)
+- **`title`** - titulek písně
+- **`data`** - tělo písně (text, akordy, sloka/refrén)
 
-## Contributions and Commitments
-If you would like to contribute to this project, please open an issue or create a pull request. We welcome improvements!
+Model je natrénován na fotografiích křesťanských zpěvníků a proložek s písněmi. Dokáže identifikovat umístění jednotlivých částí písně i v komplikovanějších layoutech nebo při šikmém naskenování.
+
+### 3. Seskupení detekovaných oblastí
+- Filtrování duplicit (odstraní menší detekce uvnitř větších)
+- Seskupení title + data do logických celků (pomocí `SongDetectGroup`)
+- Párování titulků s obsahem podle prostorové blízkosti
+
+### 4. OCR - rozpoznání textu
+- Pro každou detekovanou oblast se provádí OCR (optical character recognition)
+- Získání textu včetně souřadnic jednotlivých slov (`ReadWordData`)
+
+### 5. Formátování výstupu
+- Strukturování rozpoznaného textu do JSON formátu
+- Rozpoznání struktury: sloky, refrénu, akordů
+- Volitelně AI analýza pro zlepšení přesnosti (parametr `-ai`)
+
+## Contributions
+Contributions are welcome! Open an issue or create a pull request.
 
 
 

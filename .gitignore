@@ -162,6 +162,9 @@ venv
 #.idea/
 
 tmp
+tmp/
+temp
+temp/
 *.pt
 
 .DS_Store

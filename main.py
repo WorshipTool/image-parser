@@ -21,11 +21,10 @@ defaultOutputPath = os.path.join("tmp", "op.json")
 defaultFormattedOutputPath = os.path.join("tmp", "fr.json")
 
 
-def parse_images(inputImages: list[str], outputPath: str = None, useAi: bool = False) -> Generator[int, None, list]: 
-    if(useAi):
-        print("Detecting with AI (Good 👍 )")
-    else:
-        print("Basic Detecting (Bad 😞 )")
+def parse_images(inputImages: list[str], outputPath: str = None) -> Generator[int, None, list]:
+    # AI analýza je vypnutá - bude se používat samostatně pro částečný processing
+    useAi = False
+    print("Basic Detecting")
 
     yield 0; # 0% progress
 
@@ -160,15 +159,12 @@ if __name__ == "__main__":
     OUTPUT_JSON_PATH = ""
     INPUT_IMAGES_PATH = []
 
-    # check if  arg contains '-ai'
-    USE_AI = '-ai' in sys.argv
-
-    # Load arguments 
-    allArgKeys = ["-o","-i"] 
+    # Load arguments
+    allArgKeys = ["-o","-i"]
 
     OUTPUT_JSON_PATH = common.load_argument("-o", allArgKeys)
     INPUT_IMAGES_PATH = common.load_argument("-i", allArgKeys, True)
-    gen = parse_images(INPUT_IMAGES_PATH, OUTPUT_JSON_PATH, USE_AI)
+    gen = parse_images(INPUT_IMAGES_PATH, OUTPUT_JSON_PATH)
 
     # Handle generator stream
     while True:

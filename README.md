@@ -16,10 +16,12 @@ python prepare.py
 
 ```bash
 python main.py -o output.json -i cesta_k_obrazku.jpg
-python main.py -o output.json -i obrazek1.jpg obrazek2.png -ai  # s AI analýzou
+python main.py -o output.json -i obrazek1.jpg obrazek2.png
 ```
 
 **Podporované formáty:** JPG, PNG
+
+**Poznámka:** AI analýza je vypnutá. Bude se používat samostatně pro částečný processing.
 
 ## Jak to funguje
 
@@ -53,7 +55,6 @@ Model je natrénován na fotografiích křesťanských zpěvníků a proložek s
 
 -   Strukturování rozpoznaného textu do JSON formátu
 -   Rozpoznání struktury: sloky, refrénu, akordů
--   Volitelně AI analýza pro zlepšení přesnosti (parametr `-ai`)
 
 ## Contributions
 

@@ -241,19 +241,56 @@ class PhotoProcessor:
         if len(points) < 4:
             return None
 
-        # Najdeme 4 extrémní body
-        # Top-left: nejmenší součet x+y
-        # Top-right: největší rozdíl x-y
-        # Bottom-right: největší součet x+y
-        # Bottom-left: nejmenší rozdíl x-y
+        # KROK 1: Odstraníme duplicitní body
+        # Použijeme numpy.unique pro odstranění přesně stejných bodů
+        points_unique, unique_indices = np.unique(points, axis=0, return_index=True)
+        # Seřadíme podle původního pořadí
+        points = points_unique[np.argsort(unique_indices)]
 
-        sum_pts = points.sum(axis=1)
-        diff_pts = np.diff(points, axis=1).flatten()
+        if len(points) < 4:
+            return None
 
-        tl = points[np.argmin(sum_pts)]
-        br = points[np.argmax(sum_pts)]
-        tr = points[np.argmax(diff_pts)]
-        bl = points[np.argmin(diff_pts)]
+        # KROK 2: Najdeme 4 extrémní body
+        # Hledáme body, které jsou nejvíc nahoře-vlevo, nahoře-vpravo, dole-vpravo, dole-vlevo
+
+        # Nejlevější bod s minimálním y (top-left)
+        tl_idx = np.argmin(points[:, 0] + points[:, 1])
+        tl = points[tl_idx]
+
+        # Nejpravější bod s minimálním y (top-right)
+        tr_idx = np.argmax(points[:, 0] - points[:, 1])
+        tr = points[tr_idx]
+
+        # Nejpravější bod s maximálním y (bottom-right)
+        br_idx = np.argmax(points[:, 0] + points[:, 1])
+        br = points[br_idx]
+
+        # Nejlevější bod s maximálním y (bottom-left)
+        bl_idx = np.argmin(points[:, 0] - points[:, 1])
+        bl = points[bl_idx]
+
+        # Zkontrolujeme, že máme 4 různé indexy
+        indices = {tl_idx, tr_idx, br_idx, bl_idx}
+        if len(indices) < 4:
+            # Pokud máme duplicity, zkusíme jiný přístup - vybereme 4 nejvzdálenější body od středu
+            center = points.mean(axis=0)
+            distances = np.linalg.norm(points - center, axis=1)
+            # Seřadíme body podle vzdálenosti od středu
+            sorted_indices = np.argsort(distances)[::-1]
+
+            # Vybereme 4 nejvzdálenější body
+            if len(sorted_indices) >= 4:
+                selected_points = points[sorted_indices[:4]]
+                # Seřadíme je jako TL, TR, BR, BL
+                sum_pts = selected_points.sum(axis=1)
+                diff_pts = np.diff(selected_points, axis=1).flatten()
+
+                tl = selected_points[np.argmin(sum_pts)]
+                br = selected_points[np.argmax(sum_pts)]
+                tr = selected_points[np.argmax(diff_pts)]
+                bl = selected_points[np.argmin(diff_pts)]
+            else:
+                return None
 
         # Uspořádáme jako TL, TR, BR, BL
         corners = np.array([tl, tr, br, bl], dtype=np.float32)

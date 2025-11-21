@@ -88,8 +88,7 @@ class TestPreprocessor:
         """Test inicializace preprocessoru"""
         preprocessor = ImagePreprocessor(model_path)
         assert preprocessor is not None
-        assert preprocessor.screenshot_processor is not None
-        assert preprocessor.photo_processor is not None
+        assert preprocessor.model is not None
 
     def test_preprocess_invalid_path(self, preprocessor):
         """Test zpracování neexistujícího souboru"""
@@ -207,7 +206,7 @@ class TestScreenshotProcessor:
 
         img_path = os.path.join(screenshot_dir, screenshots[0])
         img = cv2.imread(img_path)
-        detections = preprocessor.screenshot_processor.detect_all_songs(img_path, img)
+        detections = preprocessor._detect_all_songs(img_path, img)
 
         # Měla by být alespoň jedna detekce (nebo prázdný list, pokud model nic nenajde)
         assert isinstance(detections, list)
@@ -228,7 +227,7 @@ class TestPhotoProcessor:
 
         img_path = os.path.join(photos_dir, photos[0])
         img = cv2.imread(img_path)
-        result = preprocessor.photo_processor.process(img)
+        result = preprocessor._process_single_song(img)
 
         assert result is not None
         assert isinstance(result, np.ndarray)

@@ -246,6 +246,8 @@ def detect_text_orientation(image: np.ndarray, debug: bool = False) -> int:
     try:
         # Tesseract OSD (Orientation and Script Detection)
         # --psm 0 = pouze OSD, žádné OCR
+        use_fallback = False
+
         try:
             osd = pytesseract.image_to_osd(gray)
 
@@ -267,16 +269,58 @@ def detect_text_orientation(image: np.ndarray, debug: bool = False) -> int:
             if debug:
                 print(f"  🔄 Detected rotation: {rotation_angle}° (confidence: {orientation_conf:.1f})")
 
-            return rotation_angle
+            # Pouze pokud je confidence dostatečně vysoká (min 1.5), použijeme Tesseract výsledek
+            if orientation_conf >= 1.5:
+                return rotation_angle
+            else:
+                if debug:
+                    print(f"  ⚠️  Confidence too low ({orientation_conf:.1f} < 1.5), using Hough fallback")
+                use_fallback = True
 
         except Exception as e:
             if debug:
                 print(f"  ⚠️  Tesseract OSD failed: {e}")
-            # Pokud OSD selže, zkusíme heuristiku
+            use_fallback = True
+
+        # Fallback: Použijeme Hough detekci linií k určení orientace
+        # (provede se když Tesseract selže NEBO má nízkou confidence)
+        if use_fallback:
+            edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+            lines = cv2.HoughLines(edges, 1, np.pi / 180, 100)
+
+            if lines is not None and len(lines) > 5:
+                # Spočítáme horizontální vs vertikální linie
+                horizontal_count = 0
+                vertical_count = 0
+
+                for rho, theta in lines[:, 0]:
+                    angle_deg = (theta * 180 / np.pi)
+
+                    # Horizontální linie: kolem 0° nebo 180°
+                    if (angle_deg < 20 or angle_deg > 160):
+                        horizontal_count += 1
+                    # Vertikální linie: kolem 90°
+                    elif (70 < angle_deg < 110):
+                        vertical_count += 1
+
+                if debug:
+                    print(f"  📏 Line detection: {horizontal_count} horizontal, {vertical_count} vertical")
+
+                # Pokud je víc vertikálních než horizontálních, text je otočený o 90°
+                # Použijeme nižší threshold (1.2x místo 1.5x) pro lepší detekci
+                if vertical_count > horizontal_count * 1.2:
+                    if debug:
+                        print(f"  📐 Detected vertical text, rotating 270° (or -90°)")
+                    return 270
+
+            # Poslední fallback: aspect ratio
             if h > w * 1.3:
                 if debug:
-                    print(f"  📐 Using heuristic (h>w*1.3): rotate 270° (or -90°)")
+                    print(f"  📐 Using aspect ratio heuristic (h>w*1.3): rotate 270° (or -90°)")
                 return 270
+
+            if debug:
+                print(f"  📐 No clear orientation detected, keeping 0°")
             return 0
 
     except Exception as e:

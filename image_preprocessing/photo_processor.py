@@ -10,7 +10,7 @@ class PhotoProcessor:
     a narovnání.
     """
 
-    def __init__(self, min_area_ratio: float = 0.3, max_area_ratio: float = 0.95):
+    def __init__(self, min_area_ratio: float = 0.05, max_area_ratio: float = 0.98):
         """
         Inicializace procesoru pro fotografie.
 
@@ -55,12 +55,13 @@ class PhotoProcessor:
 
         return warped
 
-    def _detect_paper(self, image: np.ndarray) -> Optional[np.ndarray]:
+    def _detect_paper(self, image: np.ndarray, debug: bool = True) -> Optional[np.ndarray]:
         """
         Detekuje papír v obrázku pomocí edge detection.
 
         Args:
             image: Vstupní obrázek
+            debug: Pokud True, vypíše debug informace
 
         Returns:
             Array 4 rohů papíru nebo None
@@ -75,7 +76,90 @@ class PhotoProcessor:
         best_corners = None
         best_score = 0
 
-        for threshold1, threshold2 in [(50, 150), (30, 100), (75, 200)]:
+        if debug:
+            print(f"      🔍 Trying brightness threshold + edge detection...")
+
+        # METODA 1: Brightness threshold (hledá světlý papír na tmavším pozadí)
+        _, thresh = cv2.threshold(blurred, 120, 255, cv2.THRESH_BINARY)
+        kernel = np.ones((5, 5), np.uint8)
+        thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=3)
+        contours_bright, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        if len(contours_bright) > 0:
+            if debug:
+                print(f"        Brightness threshold: {len(contours_bright)} bright regions found")
+
+            contours_bright = sorted(contours_bright, key=cv2.contourArea, reverse=True)
+            image_area = image.shape[0] * image.shape[1]
+
+            for i, contour in enumerate(contours_bright[:5]):
+                area = cv2.contourArea(contour)
+                area_ratio = area / image_area
+
+                if debug and i < 3:
+                    print(f"          Region {i}: area_ratio={area_ratio:.3f}", end="")
+
+                if self.min_area_ratio < area_ratio < self.max_area_ratio:
+                    peri = cv2.arcLength(contour, True)
+
+                    found_valid = False
+                    points_history = []
+                    best_approx_3_6 = None  # Nejlepší aproximace s 3-6 body
+                    # Jemné kroky mezi 0.01 a 0.10
+                    epsilons = [0.01, 0.015, 0.02, 0.025, 0.03, 0.032, 0.035, 0.038, 0.04, 0.042, 0.045, 0.048, 0.05, 0.055, 0.06, 0.07, 0.08, 0.10]
+                    for epsilon_mult in epsilons:
+                        approx = cv2.approxPolyDP(contour, epsilon_mult * peri, True)
+                        points_history.append(len(approx))
+
+                        # Ideální: přesně 4 body
+                        if len(approx) == 4:
+                            if self._is_valid_quadrilateral(approx):
+                                score = area_ratio * self._rectangularity_score(approx)
+
+                                if debug and i < 3:
+                                    print(f", score={score:.3f} (eps={epsilon_mult}) ✓")
+
+                                if score > best_score:
+                                    best_score = score
+                                    best_corners = approx.reshape(4, 2)
+                                    found_valid = True
+                                    break
+                            elif debug and i < 3:
+                                print(f" (eps={epsilon_mult}: invalid quad)")
+
+                        # Fallback: uložíme nejlepší aproximaci s 3-6 body
+                        elif 3 <= len(approx) <= 6 and best_approx_3_6 is None:
+                            best_approx_3_6 = approx
+
+                    # Pokud jsme nenašli přesně 4 body, zkusíme aproximaci
+                    if not found_valid and best_approx_3_6 is not None:
+                        # Vybereme 4 nejvzdálenější rohy
+                        points = best_approx_3_6.reshape(-1, 2)
+                        if len(points) >= 4:
+                            # Najdeme 4 rohy (nejextrémnější body)
+                            corners_4 = self._select_4_corners(points)
+                            if corners_4 is not None:
+                                score = area_ratio * 0.8  # Penalizace za aproximaci
+                                if debug and i < 3:
+                                    print(f", score={score:.3f} (approx from {len(points)} points) ✓")
+                                if score > best_score:
+                                    best_score = score
+                                    best_corners = corners_4
+                                    found_valid = True
+
+                    if not found_valid and debug and i < 3:
+                        print(f" (points: {points_history})")
+
+                    if found_valid:
+                        break
+                elif debug and i < 3:
+                    print(f" (rejected: out of range {self.min_area_ratio}-{self.max_area_ratio})")
+
+        # METODA 2: Edge detection (klasická metoda)
+        if debug:
+            print(f"      🔍 Trying edge detection (Canny)...")
+
+        for threshold1, threshold2 in [(50, 150), (30, 100), (75, 200), (20, 80), (100, 250)]:
             edges = cv2.Canny(blurred, threshold1, threshold2)
 
             # Dilate a erode pro spojení přerušených hran
@@ -87,6 +171,8 @@ class PhotoProcessor:
             contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
             if len(contours) == 0:
+                if debug:
+                    print(f"        Threshold ({threshold1},{threshold2}): no contours found")
                 continue
 
             # Seřadíme podle plochy
@@ -94,31 +180,85 @@ class PhotoProcessor:
 
             image_area = image.shape[0] * image.shape[1]
 
+            if debug:
+                print(f"        Threshold ({threshold1},{threshold2}): {len(contours)} contours, checking top 5")
+
             # Projdeme největší kontury
-            for contour in contours[:5]:
+            for i, contour in enumerate(contours[:5]):
                 area = cv2.contourArea(contour)
                 area_ratio = area / image_area
 
                 # Kontrola, zda kontura má rozumnou velikost
                 if not (self.min_area_ratio < area_ratio < self.max_area_ratio):
+                    if debug and i < 2:
+                        print(f"          Contour {i}: area_ratio={area_ratio:.3f} (rejected: out of range)")
                     continue
 
                 # Aproximace kontury na polygon
                 peri = cv2.arcLength(contour, True)
-                approx = cv2.approxPolyDP(contour, 0.02 * peri, True)
 
-                # Hledáme čtyřúhelník
-                if len(approx) == 4:
-                    # Kontrola, zda je to opravdu čtyřúhelník (ne příliš zkreslený)
-                    if self._is_valid_quadrilateral(approx):
-                        # Skórování podle toho, jak moc je kontura blízko obdélníku
-                        score = area_ratio * self._rectangularity_score(approx)
+                # Zkusíme více approximation tolerancí
+                for epsilon_mult in [0.02, 0.03, 0.04, 0.05]:
+                    approx = cv2.approxPolyDP(contour, epsilon_mult * peri, True)
 
-                        if score > best_score:
-                            best_score = score
-                            best_corners = approx.reshape(4, 2)
+                    # Hledáme čtyřúhelník
+                    if len(approx) == 4:
+                        # Kontrola, zda je to opravdu čtyřúhelník (ne příliš zkreslený)
+                        if self._is_valid_quadrilateral(approx):
+                            # Skórování podle toho, jak moc je kontura blízko obdélníku
+                            score = area_ratio * self._rectangularity_score(approx)
+
+                            if debug and i < 2:
+                                print(f"          Contour {i}: area_ratio={area_ratio:.3f}, score={score:.3f} ✓")
+
+                            if score > best_score:
+                                best_score = score
+                                best_corners = approx.reshape(4, 2)
+                                break  # Našli jsme validní, nemusíme zkoušet další epsilon
+                        elif debug and i < 2:
+                            print(f"          Contour {i}: area_ratio={area_ratio:.3f} (rejected: invalid quadrilateral)")
+                    elif debug and i < 2 and epsilon_mult == 0.02:
+                        print(f"          Contour {i}: area_ratio={area_ratio:.3f}, {len(approx)} points (need 4)")
+
+        if debug:
+            if best_corners is not None:
+                print(f"      ✅ Best quadrilateral found with score={best_score:.3f}")
+            else:
+                print(f"      ❌ No valid quadrilateral found")
 
         return best_corners
+
+    def _select_4_corners(self, points: np.ndarray) -> Optional[np.ndarray]:
+        """
+        Z více bodů vybere 4 nejvzdálenější rohy (TL, TR, BR, BL).
+
+        Args:
+            points: Array bodů (Nx2)
+
+        Returns:
+            Array 4 rohů nebo None
+        """
+        if len(points) < 4:
+            return None
+
+        # Najdeme 4 extrémní body
+        # Top-left: nejmenší součet x+y
+        # Top-right: největší rozdíl x-y
+        # Bottom-right: největší součet x+y
+        # Bottom-left: nejmenší rozdíl x-y
+
+        sum_pts = points.sum(axis=1)
+        diff_pts = np.diff(points, axis=1).flatten()
+
+        tl = points[np.argmin(sum_pts)]
+        br = points[np.argmax(sum_pts)]
+        tr = points[np.argmax(diff_pts)]
+        bl = points[np.argmin(diff_pts)]
+
+        # Uspořádáme jako TL, TR, BR, BL
+        corners = np.array([tl, tr, br, bl], dtype=np.float32)
+
+        return corners
 
     def _is_valid_quadrilateral(self, approx: np.ndarray) -> bool:
         """
@@ -146,8 +286,8 @@ class PhotoProcessor:
             angle = np.arccos(np.clip(cos_angle, -1.0, 1.0))
             angle_deg = np.degrees(angle)
 
-            # Úhel by měl být mezi 45 a 135 stupni (tolerance pro perspektivu)
-            if angle_deg < 45 or angle_deg > 135:
+            # Úhel by měl být mezi 20 a 160 stupni (velká tolerance pro perspektivu)
+            if angle_deg < 20 or angle_deg > 160:
                 return False
 
         return True

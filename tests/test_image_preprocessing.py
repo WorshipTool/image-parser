@@ -107,9 +107,15 @@ class TestPreprocessor:
             pytest.skip("Žádné screenshoty nenalezeny")
 
         img_path = os.path.join(screenshot_dir, screenshots[0])
-        result_path = preprocessor.preprocess(img_path)
+        result_paths = preprocessor.preprocess(img_path)
 
-        assert result_path is not None
+        # preprocess() teď vrací list cest (může být více písní na obrázku)
+        assert result_paths is not None
+        assert isinstance(result_paths, list)
+        assert len(result_paths) > 0
+
+        # Zkontrolujeme první zpracovaný obrázek
+        result_path = result_paths[0]
         assert isinstance(result_path, str)
         assert os.path.exists(result_path)
 
@@ -131,9 +137,15 @@ class TestPreprocessor:
             pytest.skip("Žádné fotky nenalezeny")
 
         img_path = os.path.join(photos_dir, photos[0])
-        result_path = preprocessor.preprocess(img_path)
+        result_paths = preprocessor.preprocess(img_path)
 
-        assert result_path is not None
+        # preprocess() teď vrací list cest (může být více písní na obrázku)
+        assert result_paths is not None
+        assert isinstance(result_paths, list)
+        assert len(result_paths) > 0
+
+        # Zkontrolujeme první zpracovaný obrázek
+        result_path = result_paths[0]
         assert isinstance(result_path, str)
         assert os.path.exists(result_path)
 
@@ -156,9 +168,15 @@ class TestPreprocessor:
 
         img_path = os.path.join(screenshot_dir, screenshots[0])
         custom_output = "temp/test_custom_output.png"
-        result_path = preprocessor.preprocess(img_path, custom_output)
+        result_paths = preprocessor.preprocess(img_path, custom_output)
 
-        assert result_path == custom_output
+        # preprocess() teď vrací list cest
+        assert result_paths is not None
+        assert isinstance(result_paths, list)
+        assert len(result_paths) > 0
+
+        # První výsledek by měl existovat
+        result_path = result_paths[0]
         assert os.path.exists(result_path)
 
         # Načteme výsledek a zkontrolujeme
@@ -168,9 +186,10 @@ class TestPreprocessor:
         assert len(result.shape) == 2  # Grayscale
         assert result.dtype == np.uint8
 
-        # Cleanup
-        if os.path.exists(custom_output):
-            os.remove(custom_output)
+        # Cleanup všech vygenerovaných souborů
+        for path in result_paths:
+            if os.path.exists(path):
+                os.remove(path)
 
 
 class TestScreenshotProcessor:
@@ -187,9 +206,10 @@ class TestScreenshotProcessor:
             pytest.skip("Žádné screenshoty nenalezeny")
 
         img_path = os.path.join(screenshot_dir, screenshots[0])
-        detections = preprocessor.screenshot_processor.detect_all_sheets(img_path)
+        img = cv2.imread(img_path)
+        detections = preprocessor.screenshot_processor.detect_all_songs(img_path, img)
 
-        # Měla by být alespoň jedna detekce (nebo None, pokud model nic nenajde)
+        # Měla by být alespoň jedna detekce (nebo prázdný list, pokud model nic nenajde)
         assert isinstance(detections, list)
 
 

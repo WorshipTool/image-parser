@@ -88,8 +88,14 @@ def main():
     # Process image
     try:
         print(f"📄 Zpracování: {Path(args.input).name}")
-        output_path = preprocessor.preprocess(args.input, args.output)
-        print(f"✅ Hotovo: {output_path}")
+        output_paths = preprocessor.preprocess(args.input, args.output)
+
+        if len(output_paths) == 1:
+            print(f"✅ Hotovo: {output_paths[0]}")
+        else:
+            print(f"✅ Hotovo! Zpracováno {len(output_paths)} písní:")
+            for i, path in enumerate(output_paths, 1):
+                print(f"   {i}. {path}")
     except Exception as e:
         print(f"❌ Chyba při zpracování: {e}")
         import traceback

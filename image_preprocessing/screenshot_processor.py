@@ -70,6 +70,87 @@ class ScreenshotProcessor:
 
         return image
 
+    def detect_all_songs(self, image_path: str, image: np.ndarray) -> list:
+        """
+        Detekuje všechny písně na obrázku pomocí YOLO.
+
+        Args:
+            image_path: Cesta k obrázku (pro YOLO model)
+            image: Načtený obrázek
+
+        Returns:
+            List bounding boxů [(x1, y1, x2, y2), ...]
+        """
+        # Spustíme YOLO detekci
+        results = self.model.predict(image_path, conf=0.25, verbose=False)
+
+        if len(results) == 0 or len(results[0].boxes) == 0:
+            # Nic nebylo detekováno
+            return []
+
+        boxes = results[0].boxes
+        detected_boxes = []
+
+        for box in boxes:
+            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+            detected_boxes.append((int(x1), int(y1), int(x2), int(y2)))
+
+        # Seřadíme podle plochy (největší první)
+        detected_boxes.sort(key=lambda b: (b[2]-b[0])*(b[3]-b[1]), reverse=True)
+
+        return detected_boxes
+
+    def _try_detect(self, image_path: str, image: np.ndarray) -> Optional[np.ndarray]:
+        """
+        Pokusí se detekovat oblast s písní pomocí YOLO.
+
+        Args:
+            image_path: Cesta k obrázku (pro YOLO model)
+            image: Načtený obrázek
+
+        Returns:
+            Oříznutý obrázek pokud se něco detekuje, jinak None
+        """
+        # Spustíme YOLO detekci
+        results = self.model.predict(image_path, conf=0.25, verbose=False)
+
+        if len(results) == 0 or len(results[0].boxes) == 0:
+            # Nic nebylo detekováno
+            return None
+
+        # Najdeme největší detekovanou oblast (pravděpodobně "sheet")
+        boxes = results[0].boxes
+        best_box = None
+        max_area = 0
+
+        for box in boxes:
+            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+            area = (x2 - x1) * (y2 - y1)
+
+            if area > max_area:
+                max_area = area
+                best_box = (int(x1), int(y1), int(x2), int(y2))
+
+        # Pokud jsme našli validní box, cropneme
+        if best_box is not None:
+            x1, y1, x2, y2 = best_box
+
+            # Přidáme malý padding (5% z každé strany)
+            h, w = image.shape[:2]
+            padding_x = int((x2 - x1) * 0.05)
+            padding_y = int((y2 - y1) * 0.05)
+
+            x1 = max(0, x1 - padding_x)
+            y1 = max(0, y1 - padding_y)
+            x2 = min(w, x2 + padding_x)
+            y2 = min(h, y2 + padding_y)
+
+            # Crop
+            cropped = image[y1:y2, x1:x2]
+            return cropped
+
+        return None
+
     def detect_all_sheets(self, image_path: str) -> list:
         """
         Detekuje všechny písně v obrázku.

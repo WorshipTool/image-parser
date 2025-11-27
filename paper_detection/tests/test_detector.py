@@ -179,6 +179,100 @@ class TestPaperDetector:
 
         print(f"  ✓ {image_name} detected with strategy {successful_strategy}")
 
+    def test_get_paper_metrics(self, detector, test_image):
+        """Test paper metrics calculation"""
+        corners = detector.detect(test_image)
+
+        if corners is None:
+            pytest.skip("Paper was not detected")
+
+        metrics = detector.get_paper_metrics(corners, test_image.shape)
+
+        # Verify all required metrics are present
+        assert 'cover_ratio' in metrics
+        assert 'rectangularity' in metrics
+        assert 'angle' in metrics
+        assert 'perspective_angle' in metrics
+
+        # Verify metrics are in valid ranges
+        assert 0 <= metrics['cover_ratio'] <= 1, "cover_ratio should be between 0 and 1"
+        assert 0 <= metrics['rectangularity'] <= 1, "rectangularity should be between 0 and 1"
+        assert -90 <= metrics['angle'] <= 180, "angle should be between -90 and 180 degrees"
+        assert metrics['perspective_angle'] >= 0, "perspective_angle should be non-negative"
+
+        # Verify metrics are float type
+        assert isinstance(metrics['cover_ratio'], float)
+        assert isinstance(metrics['rectangularity'], float)
+        assert isinstance(metrics['angle'], float)
+        assert isinstance(metrics['perspective_angle'], float)
+
+    def test_metrics_cover_ratio_realistic(self, detector, test_image):
+        """Test that cover_ratio is realistic for paper in photo"""
+        corners = detector.detect(test_image)
+
+        if corners is None:
+            pytest.skip("Paper was not detected")
+
+        metrics = detector.get_paper_metrics(corners, test_image.shape)
+
+        # Paper in photo typically occupies 5% to 95% of image
+        assert 0.05 <= metrics['cover_ratio'] <= 0.95, \
+            f"cover_ratio {metrics['cover_ratio']} seems unrealistic"
+
+    def test_metrics_rectangularity_high(self, detector, test_image):
+        """Test that rectangularity is high for paper (should be rectangular)"""
+        corners = detector.detect(test_image)
+
+        if corners is None:
+            pytest.skip("Paper was not detected")
+
+        metrics = detector.get_paper_metrics(corners, test_image.shape)
+
+        # Paper should be fairly rectangular (> 0.7)
+        assert metrics['rectangularity'] > 0.7, \
+            f"rectangularity {metrics['rectangularity']} is too low for paper"
+
+    def test_metrics_on_new_test_images(self, test_images_new):
+        """Test metrics calculation on new test images"""
+        image, image_name = test_images_new
+
+        # Use adaptive detection
+        detection_strategies = [
+            {'brightness_threshold': 200, 'min_area_ratio': 0.01},
+            {'brightness_threshold': 180, 'min_area_ratio': 0.005},
+            {'brightness_threshold': 120, 'min_area_ratio': 0.003, 'approx_epsilon': 0.03},
+            {'brightness_threshold': 100, 'min_area_ratio': 0.003, 'approx_epsilon': 0.03},
+        ]
+
+        corners = None
+        detector = None
+        for strategy_params in detection_strategies:
+            detector = PaperDetector(**strategy_params)
+            corners = detector.detect(image)
+            if corners is not None:
+                break
+
+        if corners is None:
+            pytest.skip(f"Paper was not detected in {image_name}")
+
+        # Calculate metrics
+        metrics = detector.get_paper_metrics(corners, image.shape)
+
+        # Verify all metrics present and valid
+        assert 'cover_ratio' in metrics
+        assert 'rectangularity' in metrics
+        assert 'angle' in metrics
+        assert 'perspective_angle' in metrics
+
+        assert 0 <= metrics['cover_ratio'] <= 1
+        assert 0 <= metrics['rectangularity'] <= 1
+        assert metrics['perspective_angle'] >= 0
+
+        print(f"  ✓ {image_name} metrics: cover={metrics['cover_ratio']:.2f}, "
+              f"rect={metrics['rectangularity']:.2f}, "
+              f"angle={metrics['angle']:.1f}°, "
+              f"persp={metrics['perspective_angle']:.1f}°")
+
     def test_visualize_new_test_images(self, test_images_new):
         """Test visualization on new test images"""
         image, image_name = test_images_new
@@ -331,6 +425,41 @@ class TestPaperVisualizer:
         assert result.shape == test_image.shape
         assert not np.array_equal(result, test_image)
 
+    def test_visualize_with_metrics(self, visualizer, detector, test_image, test_corners):
+        """Test visualization with metrics"""
+        # Calculate metrics
+        metrics = detector.get_paper_metrics(test_corners, test_image.shape)
+
+        # Visualize with metrics
+        result = visualizer.visualize_with_metrics(test_image, test_corners, metrics)
+
+        assert result is not None
+        assert result.shape == test_image.shape
+        assert not np.array_equal(result, test_image)
+
+        # Save result for manual inspection
+        output_dir = Path(__file__).parent / "output"
+        output_dir.mkdir(exist_ok=True)
+        output_path = output_dir / "test_with_metrics.jpg"
+        cv2.imwrite(str(output_path), result)
+        assert output_path.exists()
+
+    def test_visualize_with_metrics_none_metrics(self, visualizer, test_image, test_corners):
+        """Test visualization with None metrics (should show basic dimensions)"""
+        result = visualizer.visualize_with_metrics(test_image, test_corners, None)
+
+        assert result is not None
+        assert result.shape == test_image.shape
+        assert not np.array_equal(result, test_image)
+
+    def test_visualize_with_metrics_none_corners(self, visualizer, test_image):
+        """Test visualization with None corners"""
+        result = visualizer.visualize_with_metrics(test_image, None, None)
+
+        # Should return the visualized image (without metrics)
+        assert result is not None
+        assert result.shape == test_image.shape
+
     def test_create_side_by_side(self, visualizer, test_image, test_corners):
         """Test creating comparison image"""
         visualized = visualizer.visualize(test_image, test_corners)
@@ -427,3 +556,38 @@ class TestIntegration:
         output_path = output_dir / "test_comparison.jpg"
         cv2.imwrite(str(output_path), comparison)
         assert output_path.exists()
+
+    def test_full_pipeline_with_metrics(self, test_image_path):
+        """Test complete pipeline: detection + metrics + visualization"""
+        if not test_image_path.exists():
+            pytest.skip(f"Test image not found: {test_image_path}")
+
+        # Load image
+        image = cv2.imread(str(test_image_path))
+        assert image is not None, "Failed to load image"
+
+        # Detect paper
+        detector = PaperDetector()
+        corners = detector.detect(image)
+        assert corners is not None, "Paper was not detected"
+
+        # Calculate metrics
+        metrics = detector.get_paper_metrics(corners, image.shape)
+        assert metrics is not None
+        assert 'cover_ratio' in metrics
+        assert 'rectangularity' in metrics
+        assert 'angle' in metrics
+        assert 'perspective_angle' in metrics
+
+        # Visualize with metrics
+        visualizer = PaperVisualizer()
+        result = visualizer.visualize_with_metrics(image, corners, metrics)
+        assert result is not None
+        assert not np.array_equal(result, image)
+
+        # Save result (for manual review)
+        output_dir = Path(__file__).parent / "output"
+        output_dir.mkdir(exist_ok=True)
+        output_path = output_dir / "test_result_with_metrics.jpg"
+        cv2.imwrite(str(output_path), result)
+        assert output_path.exists(), "Output image was not saved"

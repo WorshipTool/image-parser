@@ -4,7 +4,7 @@ Paper detector for images using OpenCV
 
 import cv2
 import numpy as np
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 
 
 class PaperDetector:
@@ -230,3 +230,76 @@ class PaperDetector:
         height = int(max(height_left, height_right))
 
         return width, height
+
+    def get_paper_metrics(self, corners: np.ndarray, image_shape: Tuple[int, int, int]) -> Dict[str, float]:
+        """
+        Calculate quality metrics for detected paper.
+
+        Args:
+            corners: Ordered paper corners [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+            image_shape: Shape of the original image (height, width, channels)
+
+        Returns:
+            Dictionary with metrics:
+                - cover_ratio: Ratio of paper area to image area (0-1)
+                - rectangularity: How rectangular the shape is (0-1, 1=perfect rectangle)
+                - angle: Rotation angle of paper relative to horizontal (-90 to 90 degrees)
+                - perspective_angle: Perspective distortion angle (0=no distortion)
+        """
+        # Calculate contour area
+        contour_area = cv2.contourArea(corners.astype(np.int32))
+
+        # Calculate image area
+        image_area = image_shape[0] * image_shape[1]
+
+        # 1. Cover ratio - what percentage of image does the paper occupy
+        cover_ratio = contour_area / image_area
+
+        # 2. Rectangularity - how well does the contour fit a rectangle
+        # Get minimum area rectangle
+        rect = cv2.minAreaRect(corners.astype(np.float32))
+        rect_area = rect[1][0] * rect[1][1]
+
+        if rect_area > 0:
+            rectangularity = contour_area / rect_area
+        else:
+            rectangularity = 0.0
+
+        # 3. Angle - rotation angle of the paper
+        # From minAreaRect: (center, (width, height), angle)
+        # OpenCV returns angle in range [-90, 0)
+        angle = rect[2]
+
+        # Normalize angle to [-90, 90] range
+        # If width < height, the rectangle is vertical, adjust angle
+        if rect[1][0] < rect[1][1]:
+            angle = 90 + angle
+
+        # 4. Perspective angle - measure of perspective distortion
+        # Calculate by comparing opposite edge lengths
+        # Ordered corners: top-left, top-right, bottom-right, bottom-left
+
+        # Top edge length
+        top_length = np.linalg.norm(corners[1] - corners[0])
+        # Bottom edge length
+        bottom_length = np.linalg.norm(corners[2] - corners[3])
+        # Left edge length
+        left_length = np.linalg.norm(corners[3] - corners[0])
+        # Right edge length
+        right_length = np.linalg.norm(corners[2] - corners[1])
+
+        # Calculate perspective distortion ratios
+        horizontal_distortion = abs(top_length - bottom_length) / max(top_length, bottom_length)
+        vertical_distortion = abs(left_length - right_length) / max(left_length, right_length)
+
+        # Perspective angle as average distortion converted to degrees
+        # 0% distortion = 0°, 100% distortion ≈ 45° (severe perspective)
+        avg_distortion = (horizontal_distortion + vertical_distortion) / 2
+        perspective_angle = np.arctan(avg_distortion) * 180 / np.pi
+
+        return {
+            'cover_ratio': float(cover_ratio),
+            'rectangularity': float(rectangularity),
+            'angle': float(angle),
+            'perspective_angle': float(perspective_angle)
+        }

@@ -4,7 +4,7 @@ Visualization of detected paper
 
 import cv2
 import numpy as np
-from typing import Tuple
+from typing import Tuple, Dict, Optional
 
 
 class PaperVisualizer:
@@ -160,6 +160,87 @@ class PaperVisualizer:
                     1,
                     cv2.LINE_AA
                 )
+
+        return result
+
+    def visualize_with_metrics(
+        self,
+        image: np.ndarray,
+        corners: np.ndarray,
+        metrics: Optional[Dict[str, float]] = None
+    ) -> np.ndarray:
+        """
+        Visualize detected paper with quality metrics.
+
+        Args:
+            image: Input image (BGR format)
+            corners: Array with 4 paper corners
+            metrics: Dictionary with metrics (cover_ratio, rectangularity, angle, perspective_angle)
+
+        Returns:
+            Image with visualization and metrics
+        """
+        result = self.visualize(image, corners)
+
+        if corners is None:
+            return result
+
+        # Text information
+        info_text = []
+
+        if metrics is not None:
+            # Format metrics
+            cover_pct = metrics.get('cover_ratio', 0) * 100
+            rect_pct = metrics.get('rectangularity', 0) * 100
+            angle = metrics.get('angle', 0)
+            persp_angle = metrics.get('perspective_angle', 0)
+
+            info_text = [
+                f"Cover: {cover_pct:.1f}%",
+                f"Rect: {rect_pct:.1f}%",
+                f"Angle: {angle:.1f}deg",
+                f"Persp: {persp_angle:.1f}deg"
+            ]
+        else:
+            # Fallback to basic dimensions
+            width_top = np.linalg.norm(corners[1] - corners[0])
+            width_bottom = np.linalg.norm(corners[2] - corners[3])
+            width = int(max(width_top, width_bottom))
+
+            height_left = np.linalg.norm(corners[3] - corners[0])
+            height_right = np.linalg.norm(corners[2] - corners[1])
+            height = int(max(height_left, height_right))
+
+            info_text = [
+                f"Width: {width}px",
+                f"Height: {height}px"
+            ]
+
+        # Position for text (top left corner)
+        y_offset = 30
+        for i, text in enumerate(info_text):
+            # White outline
+            cv2.putText(
+                result,
+                text,
+                (10, y_offset + i * 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (255, 255, 255),
+                2,
+                cv2.LINE_AA
+            )
+            # Black text
+            cv2.putText(
+                result,
+                text,
+                (10, y_offset + i * 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 0, 0),
+                1,
+                cv2.LINE_AA
+            )
 
         return result
 

@@ -34,6 +34,21 @@ class TestPaperDetector:
             pytest.skip(f"Test image not found: {test_image_path}")
         return cv2.imread(str(test_image_path))
 
+    @pytest.fixture(params=['test_image_1.jpeg', 'test_image_2.jpg', 'test_image_3.jpeg'])
+    def test_images_new(self, request):
+        """Load new test images from test_images folder"""
+        test_images_dir = Path(__file__).parent / "test_images"
+        image_path = test_images_dir / request.param
+
+        if not image_path.exists():
+            pytest.skip(f"Test image not found: {image_path}")
+
+        image = cv2.imread(str(image_path))
+        if image is None:
+            pytest.skip(f"Failed to load image: {image_path}")
+
+        return image, request.param
+
     def test_detector_init(self):
         """Test detector initialization"""
         detector = PaperDetector()
@@ -122,6 +137,83 @@ class TestPaperDetector:
 
         # At least one should find the paper
         assert corners1 is not None or corners2 is not None
+
+    def test_detect_on_new_test_images(self, test_images_new):
+        """Test detection on new test images with adaptive parameters"""
+        image, image_name = test_images_new
+
+        # Try different detection strategies based on image characteristics
+        # Some papers may require different brightness thresholds
+        detection_strategies = [
+            # Strategy 1: Standard threshold (works for bright, clean papers)
+            {'brightness_threshold': 200, 'min_area_ratio': 0.01},
+            # Strategy 2: Lower threshold (works for slightly darker papers)
+            {'brightness_threshold': 180, 'min_area_ratio': 0.005},
+            # Strategy 3: Very low threshold (works for shadowed papers)
+            {'brightness_threshold': 120, 'min_area_ratio': 0.003, 'approx_epsilon': 0.03},
+            # Strategy 4: Minimal threshold (last resort)
+            {'brightness_threshold': 100, 'min_area_ratio': 0.003, 'approx_epsilon': 0.03},
+            # Strategy 5: Canny edge detection (works well for clear edges)
+            {'use_threshold_method': False, 'min_area_ratio': 0.005},
+        ]
+
+        corners = None
+        successful_strategy = None
+
+        for i, strategy_params in enumerate(detection_strategies):
+            detector = PaperDetector(**strategy_params)
+            corners = detector.detect(image)
+
+            if corners is not None:
+                successful_strategy = i + 1
+                break
+
+        # Verify that paper was detected with at least one strategy
+        assert corners is not None, f"Paper was not detected in {image_name} with any strategy"
+        assert corners.shape == (4, 2), f"4 corners were not found in {image_name}"
+
+        # Verify valid coordinates
+        assert np.all(corners >= 0), f"Corners contain negative coordinates in {image_name}"
+        assert np.all(corners[:, 0] < image.shape[1]), f"X coordinates out of range in {image_name}"
+        assert np.all(corners[:, 1] < image.shape[0]), f"Y coordinates out of range in {image_name}"
+
+        print(f"  ✓ {image_name} detected with strategy {successful_strategy}")
+
+    def test_visualize_new_test_images(self, test_images_new):
+        """Test visualization on new test images"""
+        image, image_name = test_images_new
+
+        # Use adaptive detection
+        detection_strategies = [
+            {'brightness_threshold': 180, 'min_area_ratio': 0.005},
+            {'brightness_threshold': 120, 'min_area_ratio': 0.003, 'approx_epsilon': 0.03},
+            {'brightness_threshold': 100, 'min_area_ratio': 0.003, 'approx_epsilon': 0.03},
+        ]
+
+        corners = None
+        for strategy_params in detection_strategies:
+            detector = PaperDetector(**strategy_params)
+            corners = detector.detect(image)
+            if corners is not None:
+                break
+
+        if corners is None:
+            pytest.skip(f"Paper was not detected in {image_name}")
+
+        # Visualize
+        visualizer = PaperVisualizer()
+        result = visualizer.visualize(image, corners)
+
+        assert result is not None, f"Visualization failed for {image_name}"
+        assert result.shape == image.shape, f"Result shape mismatch for {image_name}"
+        assert not np.array_equal(result, image), f"Result unchanged for {image_name}"
+
+        # Save visualization for manual inspection
+        output_dir = Path(__file__).parent / "output"
+        output_dir.mkdir(exist_ok=True)
+        output_path = output_dir / f"new_{image_name}"
+        cv2.imwrite(str(output_path), result)
+        assert output_path.exists(), f"Failed to save visualization for {image_name}"
 
 
 class TestPaperVisualizer:

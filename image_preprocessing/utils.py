@@ -172,12 +172,16 @@ def rotate_image(image: np.ndarray, angle: float) -> np.ndarray:
     return rotated
 
 
-def detect_rotation_angle(image: np.ndarray) -> float:
+def detect_rotation_angle(image: np.ndarray, debug: bool = False) -> float:
     """
-    Detekuje úhel rotace textu v obrázku pomocí Hough transform.
+    Detekuje úhel rotace textu v obrázku pomocí analýzy textových komponent.
+
+    Klíčová změna: Počítá úhel z TEXTU (malých komponent), ne z celého obrazu/pozadí.
+    Tímto se vyhne detekci hran stolu, kachliček, prken apod.
 
     Args:
         image: Vstupní obrázek (grayscale)
+        debug: Pokud True, vypíše debug informace
 
     Returns:
         Úhel rotace ve stupních
@@ -188,29 +192,150 @@ def detect_rotation_angle(image: np.ndarray) -> float:
     else:
         gray = image
 
-    # Detekce hran
-    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+    h, w = gray.shape[:2]
 
-    # Hough Line Transform
-    lines = cv2.HoughLines(edges, 1, np.pi / 180, 200)
+    # Použij celý obrázek (YOLO už udělal crop)
+    center_roi = gray
 
-    if lines is None or len(lines) == 0:
+    # KROK 2: Vytvoř masku textu pomocí adaptive threshold
+    # Invertuj, aby text byl bílý (255), pozadí černé (0)
+    binary = cv2.adaptiveThreshold(
+        center_roi, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV, 11, 2
+    )
+
+    # KROK 3: Najdi textové komponenty (connected components)
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary, connectivity=8)
+
+    if num_labels <= 1:  # Pouze pozadí
         return 0.0
 
-    # Výpočet průměrného úhlu
-    angles = []
-    for rho, theta in lines[:, 0]:
-        angle = (theta * 180 / np.pi) - 90
-        # Filtrujeme pouze úhly blízko horizontály
-        if -45 < angle < 45:
-            angles.append(angle)
+    # KROK 4: Filtruj komponenty podle plochy
+    # Zahoď obrovské bloby (pozadí, dlouhé čáry) a malé šumy
+    # Necháme jen střední komponenty (pravděpodobně písmena)
+    roi_area = center_roi.shape[0] * center_roi.shape[1]
+    min_area = roi_area * 0.0001  # 0.01% plochy ROI
+    max_area = roi_area * 0.05    # 5% plochy ROI (velké čáry/pozadí)
 
-    if len(angles) == 0:
+    text_pixels = []
+    for i in range(1, num_labels):  # Skip label 0 (background)
+        area = stats[i, cv2.CC_STAT_AREA]
+        if min_area < area < max_area:
+            # Přidej všechny pixely této komponenty
+            mask = (labels == i).astype(np.uint8) * 255
+            coords = cv2.findNonZero(mask)
+            if coords is not None:
+                text_pixels.append(coords.reshape(-1, 2))
+
+    if len(text_pixels) == 0:
+        if debug:
+            print(f"  ⚠️  No text components found for rotation detection")
         return 0.0
 
-    # Medián úhlů (robustnější než průměr)
-    median_angle = np.median(angles)
-    return median_angle
+    # Spojíme všechny textové pixely dohromady
+    all_text_pixels = np.vstack(text_pixels)
+
+    # KROK 5: Použij PCA (Principal Component Analysis) pro detekci hlavního směru textu
+    # PCA najde hlavní směr rozložení textových pixelů
+    try:
+        # Vlastní implementace PCA pomocí numpy
+        # Centrum dat
+        mean = np.mean(all_text_pixels, axis=0)
+        centered = all_text_pixels - mean
+
+        # Kovarianční matice
+        cov_matrix = np.cov(centered.T)
+
+        # Vlastní čísla a vlastní vektory
+        eigenvalues, eigenvectors = np.linalg.eig(cov_matrix)
+
+        # Seřaď podle velikosti vlastních čísel (sestupně)
+        idx = eigenvalues.argsort()[::-1]
+        eigenvectors = eigenvectors[:, idx]
+
+        # První vlastní vektor (hlavní komponenta)
+        eigen_vec = eigenvectors[:, 0]
+
+        # Výpočet úhlu z eigenvektoru
+        angle = np.degrees(np.arctan2(eigen_vec[1], eigen_vec[0]))
+
+        # Normalizuj na rozsah -45 až +45
+        if angle < -45:
+            angle = angle + 90
+        elif angle > 45:
+            angle = angle - 90
+
+        if debug:
+            print(f"  📐 Detected rotation angle from text: {angle:.2f}° (PCA)")
+
+        return angle
+
+    except Exception as e:
+        if debug:
+            print(f"  ⚠️  PCA failed: {e}, using fallback")
+
+    # Fallback na minAreaRect (pokud PCA selže)
+    rect = cv2.minAreaRect(all_text_pixels)
+    ((cx, cy), (width, height), angle) = rect
+
+    if width < height:
+        angle = angle - 90
+
+    if angle < -45:
+        angle = angle + 90
+    elif angle > 45:
+        angle = angle - 90
+
+    if debug:
+        print(f"  📐 Detected rotation angle from text: {angle:.2f}° (minAreaRect fallback)")
+
+    return angle
+
+
+def _check_180_rotation(gray: np.ndarray, debug: bool = False) -> bool:
+    """
+    Zkontroluje, zda je text otočený o 180° pomocí OCR testu.
+
+    Args:
+        gray: Grayscale obrázek
+        debug: Pokud True, vypíše debug informace
+
+    Returns:
+        True pokud je text otočený o 180°, False jinak
+    """
+    if pytesseract is None:
+        return False
+
+    try:
+        # Crop do středu obrázku (pro rychlejší OCR)
+        h, w = gray.shape[:2]
+        crop_h = min(h // 2, 400)
+        crop_w = min(w // 2, 400)
+        y_start = (h - crop_h) // 2
+        x_start = (w - crop_w) // 2
+        cropped = gray[y_start:y_start+crop_h, x_start:x_start+crop_w]
+
+        # OCR na aktuální orientaci
+        data_0 = pytesseract.image_to_data(cropped, output_type=pytesseract.Output.DICT, lang='ces')
+        conf_0 = [float(c) for c in data_0['conf'] if c != '-1']
+        avg_conf_0 = sum(conf_0) / len(conf_0) if conf_0 else 0
+
+        # OCR na rotované o 180°
+        rotated = cv2.rotate(cropped, cv2.ROTATE_180)
+        data_180 = pytesseract.image_to_data(rotated, output_type=pytesseract.Output.DICT, lang='ces')
+        conf_180 = [float(c) for c in data_180['conf'] if c != '-1']
+        avg_conf_180 = sum(conf_180) / len(conf_180) if conf_180 else 0
+
+        if debug:
+            print(f"  🔄 180° check: current={avg_conf_0:.1f}, rotated={avg_conf_180:.1f}")
+
+        # Pokud je rotované výrazně lepší (20% rozdíl), text je otočený o 180°
+        return avg_conf_180 > avg_conf_0 * 1.2
+
+    except Exception as e:
+        if debug:
+            print(f"  ⚠️  180° check failed: {e}")
+        return False
 
 
 def detect_text_orientation(image: np.ndarray, debug: bool = False) -> int:
@@ -271,6 +396,13 @@ def detect_text_orientation(image: np.ndarray, debug: bool = False) -> int:
 
             # Pouze pokud je confidence dostatečně vysoká (min 1.5), použijeme Tesseract výsledek
             if orientation_conf >= 1.5:
+                # Speciální případ: Pokud Tesseract řekl 0°, zkontroluj 180°
+                # (protože Tesseract někdy nedokáže rozlišit 0° od 180°)
+                if rotation_angle == 0:
+                    if _check_180_rotation(gray, debug):
+                        if debug:
+                            print(f"  🔄 OCR confidence better at 180°, overriding Tesseract")
+                        return 180
                 return rotation_angle
             else:
                 if debug:
@@ -318,6 +450,12 @@ def detect_text_orientation(image: np.ndarray, debug: bool = False) -> int:
                 if debug:
                     print(f"  📐 Using aspect ratio heuristic (h>w*1.3): rotate 270° (or -90°)")
                 return 270
+
+            # Finální fallback: 180° OCR test
+            if _check_180_rotation(gray, debug):
+                if debug:
+                    print(f"  🔄 OCR confidence better at 180°, rotating")
+                return 180
 
             if debug:
                 print(f"  📐 No clear orientation detected, keeping 0°")

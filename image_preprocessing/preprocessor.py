@@ -126,12 +126,12 @@ class ImagePreprocessor:
         if orientation_angle != 0:
             image = rotate_image(image, -orientation_angle)
 
-        # KROK 2: Opravit rotaci (Hough)
-        angle = detect_rotation_angle(image)
+        # KROK 2: Opravit rotaci (text-based detection)
+        angle = detect_rotation_angle(image, debug=True)
 
-        # Jemná rotace
+        # Jemná rotace (neguj úhel, protože rotace je ve směru hodinových ručiček)
         if abs(angle) > 0.5:
-            image = rotate_image(image, angle)
+            image = rotate_image(image, -angle)
 
         # KROK 3: Základní předzpracování
         image = self._basic_preprocessing(image)

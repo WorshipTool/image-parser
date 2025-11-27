@@ -178,6 +178,56 @@ class TestPreprocessor:
         result_path = result_paths[0]
         assert os.path.exists(result_path)
 
+    def test_preprocess_upside_down_image(self, preprocessor, test_images_dir):
+        """Test předzpracování fotky otočené o 180° (vzhůru nohama)"""
+        photos_dir = os.path.join(test_images_dir, "photos")
+        img_path = os.path.join(photos_dir, "IMG_20230826_094635.jpg")
+
+        if not os.path.exists(img_path):
+            pytest.skip(f"Test image {img_path} not found")
+
+        # Zpracuj obrázek
+        result_paths = preprocessor.preprocess(img_path)
+
+        # Měly by být 2 písně
+        assert result_paths is not None
+        assert isinstance(result_paths, list)
+        assert len(result_paths) == 2
+
+        # Zkontroluj, že oba výstupy existují a jsou správně otočené
+        for i, result_path in enumerate(result_paths):
+            assert os.path.exists(result_path)
+            result = cv2.imread(result_path, cv2.IMREAD_GRAYSCALE)
+            assert result is not None
+            assert isinstance(result, np.ndarray)
+
+            # Zkontroluj, že text je horizontální pomocí OCR testu
+            # Pokud je text správně otočený, OCR confidence by měla být vyšší
+            try:
+                import pytesseract
+                # OCR na celém obrázku (ne crop) pro lepší detekci
+                data = pytesseract.image_to_data(result, output_type=pytesseract.Output.DICT, lang='ces')
+                conf = [float(c) for c in data['conf'] if c != '-1']
+                avg_conf = sum(conf) / len(conf) if conf and len(conf) > 5 else None
+
+                # OCR na rotované o 180°
+                rotated = cv2.rotate(result, cv2.ROTATE_180)
+                data_rotated = pytesseract.image_to_data(rotated, output_type=pytesseract.Output.DICT, lang='ces')
+                conf_rotated = [float(c) for c in data_rotated['conf'] if c != '-1']
+                avg_conf_rotated = sum(conf_rotated) / len(conf_rotated) if conf_rotated and len(conf_rotated) > 5 else None
+
+                # Aktuální orientace by měla být lepší než rotovaná
+                # (tj. text je správně otočený, ne vzhůru nohama)
+                # Pouze pokud máme obě confidence hodnoty (OCR našlo slova)
+                if avg_conf is not None and avg_conf_rotated is not None:
+                    assert avg_conf >= avg_conf_rotated * 0.8, \
+                        f"Song {i+1}: Text may still be upside down (current conf={avg_conf:.1f}, rotated={avg_conf_rotated:.1f})"
+                # Pokud OCR nenašlo nic, test prošel (nemůžeme ověřit, ale soubor existuje)
+
+            except ImportError:
+                # Pokud není pytesseract, přeskočíme OCR test
+                pass
+
         # Načteme výsledek a zkontrolujeme
         result = cv2.imread(result_path, cv2.IMREAD_GRAYSCALE)
         assert result is not None

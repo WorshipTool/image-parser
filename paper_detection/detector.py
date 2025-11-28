@@ -63,6 +63,12 @@ class PaperDetector:
         # Blur to reduce noise
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)
         edge_map = cv2.Canny(blurred, 40, 120)
+
+        # Specialized path for very small images where heuristics should be tighter
+        if max(image.shape[0], image.shape[1]) < 400:
+            small_result = self._detect_small_document(image, blurred, edge_map)
+            if small_result is not None:
+                return small_result
         def largest_area_ratio(threshold_value: int) -> float:
             _, bin_img = cv2.threshold(blurred, threshold_value, 255, cv2.THRESH_BINARY)
             contours, _ = cv2.findContours(bin_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -77,6 +83,8 @@ class PaperDetector:
 
         preferred_cover = max(area_150 * 1.05, area_180 * 1.3, bright_ratio * 1.0)
         preferred_cover = max(0.1, min(0.95, preferred_cover))
+        if max(image.shape[0], image.shape[1]) < 600:
+            preferred_cover = min(preferred_cover, 0.3)
 
         if self.use_threshold_method:
             # Threshold-based method - detect white areas
@@ -383,6 +391,58 @@ class PaperDetector:
         corners = self._order_corners(paper_contour.reshape(4, 2))
 
         return self._roll_top_first(corners)
+
+    def _detect_small_document(self, image: np.ndarray, blurred: np.ndarray, edge_map: np.ndarray) -> Optional[np.ndarray]:
+        """Specialized detection for small low-res images."""
+        h, w = image.shape[:2]
+        image_area = h * w
+        best = None
+
+        thresholds = [160, 170, 180, 190, 200]
+        kernel = np.ones((3, 3), np.uint8)
+        target_cover = 0.2
+
+        for th in thresholds:
+            _, binary = cv2.threshold(blurred, th, 255, cv2.THRESH_BINARY)
+            binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=1)
+
+            contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            for contour in contours:
+                area = cv2.contourArea(contour)
+                if area < image_area * 0.02:
+                    continue
+
+                peri = cv2.arcLength(contour, True)
+                quads = []
+
+                rect = cv2.minAreaRect(contour)
+                quads.append(cv2.boxPoints(rect))
+
+                for eps in (0.01, 0.015, 0.02, 0.03):
+                    approx = cv2.approxPolyDP(contour, eps * peri, True)
+                    if len(approx) == 4:
+                        quads.append(approx.reshape(4, 2).astype(np.float32))
+
+                for quad in quads:
+                    ordered = self._roll_top_first(self._order_corners(quad))
+                    metrics = self.get_paper_metrics(ordered, image.shape)
+                    cover = metrics['cover_ratio']
+                    if cover < 0.05 or cover > 0.7:
+                        continue
+
+                    edge_support = self._edge_alignment_score(edge_map, ordered)
+                    score = metrics['rectangularity'] * 1.5
+                    score += max(0.0, 1.0 - abs(cover - target_cover) * 4.0) * 1.5
+                    score += edge_support * 3.0
+                    score -= metrics['perspective_angle'] * 0.02
+
+                    if best is None or score > best['score']:
+                        best = {'score': score, 'corners': ordered}
+
+        if best:
+            return best['corners']
+
+        return None
 
     def _detect_with_canny_fallback(self, image: np.ndarray, gray: np.ndarray) -> Optional[np.ndarray]:
         """

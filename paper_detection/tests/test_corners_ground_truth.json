@@ -24,7 +24,7 @@
             [0.604, 0.776],
             [0.276, 0.75]
         ],
-        "tolerance_pixels": 50
+        "tolerance_pixels": 10
     },
     "test_image_2.jpg": {
         "corners": [

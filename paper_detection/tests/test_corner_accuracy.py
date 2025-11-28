@@ -211,7 +211,6 @@ class TestCornerAccuracy:
 
         # Load ground truth
         gt_data = ground_truth[image_name]
-        gt_corners = np.array(gt_data["corners"], dtype=np.float32)
         tolerance = gt_data["tolerance_pixels"]
         config = gt_data["config"]
 
@@ -221,6 +220,13 @@ class TestCornerAccuracy:
 
         image = cv2.imread(str(image_path))
         assert image is not None, f"Failed to load image: {image_path}"
+
+        # Convert relative corners (0-1) to absolute pixels
+        h, w = image.shape[:2]
+        gt_corners_relative = np.array(gt_data["corners"], dtype=np.float32)
+        gt_corners = gt_corners_relative.copy()
+        gt_corners[:, 0] *= w  # x coordinates
+        gt_corners[:, 1] *= h  # y coordinates
 
         # Detect corners
         detector = PaperDetector(**config)

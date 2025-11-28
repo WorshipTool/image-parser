@@ -49,6 +49,27 @@ class TestCornerAccuracy:
         result = image.copy()
         h, w = result.shape[:2]
 
+        # Scale parameters based on image size
+        # Use shorter dimension as reference
+        ref_size = min(h, w)
+
+        # Scale thickness (3-20px depending on image size)
+        line_thickness_gt = max(3, int(ref_size / 150))  # Green ground truth
+        line_thickness_det = max(2, int(ref_size / 180))  # Blue detected
+        line_thickness_err = max(2, int(ref_size / 200))  # Red error
+
+        # Scale circle radius (8-30px)
+        circle_radius_gt = max(8, int(ref_size / 100))
+        circle_radius_det = max(6, int(ref_size / 120))
+
+        # Scale font (0.5-3.0)
+        font_scale = max(0.5, min(3.0, ref_size / 400))
+        font_thickness = max(1, int(ref_size / 300))
+
+        # Scale legend text
+        legend_font_scale = max(0.6, min(2.5, ref_size / 500))
+        legend_font_thickness = max(2, int(ref_size / 400))
+
         # Helper to clip line to image bounds
         def clip_line(p1, p2):
             """Simple clipping - just check if points are in bounds"""
@@ -76,21 +97,24 @@ class TestCornerAccuracy:
 
             p1_clip, p2_clip = clip_line(p1, p2)
             if p1_clip and p2_clip:
-                cv2.line(result, p1_clip, p2_clip, (0, 255, 0), 3)  # Green
+                cv2.line(result, p1_clip, p2_clip, (0, 255, 0), line_thickness_gt)  # Green
 
         # Draw ground truth corners
         for i, corner in enumerate(ground_truth_corners):
             if 0 <= corner[0] < w and 0 <= corner[1] < h:
                 pos = (int(corner[0]), int(corner[1]))
-                cv2.circle(result, pos, 10, (0, 255, 0), -1)  # Green
+                cv2.circle(result, pos, circle_radius_gt, (0, 255, 0), -1)  # Green
+
+                # Position label offset based on circle size
+                label_offset = int(circle_radius_gt * 1.5)
                 cv2.putText(
                     result,
                     f"GT{i}",
-                    (pos[0] + 15, pos[1] + 15),
+                    (pos[0] + label_offset, pos[1] + label_offset),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
+                    font_scale,
                     (0, 255, 0),
-                    2
+                    font_thickness
                 )
 
         # Draw detected corners in BLUE
@@ -100,21 +124,25 @@ class TestCornerAccuracy:
 
             p1_clip, p2_clip = clip_line(p1, p2)
             if p1_clip and p2_clip:
-                cv2.line(result, p1_clip, p2_clip, (255, 100, 0), 2)  # Blue
+                cv2.line(result, p1_clip, p2_clip, (255, 100, 0), line_thickness_det)  # Blue
 
         # Draw detected corners
         for i, corner in enumerate(detected_corners):
             if 0 <= corner[0] < w and 0 <= corner[1] < h:
                 pos = (int(corner[0]), int(corner[1]))
-                cv2.circle(result, pos, 8, (255, 100, 0), -1)  # Blue
+                cv2.circle(result, pos, circle_radius_det, (255, 100, 0), -1)  # Blue
+
+                # Position label to the left
+                label_offset_x = int(circle_radius_det * 3)
+                label_offset_y = int(circle_radius_det * 1.5)
                 cv2.putText(
                     result,
                     f"D{i}",
-                    (pos[0] - 30, pos[1] + 15),
+                    (pos[0] - label_offset_x, pos[1] + label_offset_y),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
+                    font_scale,
                     (255, 100, 0),
-                    2
+                    font_thickness
                 )
 
         # Draw RED lines showing difference between GT and detected
@@ -133,7 +161,7 @@ class TestCornerAccuracy:
                 det_pos = (int(det_corner[0]), int(det_corner[1]))
 
                 # Draw red line showing error
-                cv2.line(result, gt_pos, det_pos, (0, 0, 255), 2)  # Red
+                cv2.line(result, gt_pos, det_pos, (0, 0, 255), line_thickness_err)  # Red
 
                 # Add distance label
                 mid_x = int((gt_corner[0] + det_corner[0]) / 2)
@@ -143,19 +171,22 @@ class TestCornerAccuracy:
                     f"{distance:.1f}px",
                     (mid_x, mid_y),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5,
+                    font_scale * 0.8,  # Slightly smaller for error labels
                     (0, 0, 255),
-                    2
+                    font_thickness
                 )
 
-        # Add legend
-        legend_y = 30
-        cv2.putText(result, "GREEN = Ground Truth (JSON)", (10, legend_y),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        cv2.putText(result, "BLUE = Detected", (10, legend_y + 30),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 100, 0), 2)
-        cv2.putText(result, "RED = Error", (10, legend_y + 60),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+        # Add legend (scaled spacing)
+        legend_spacing = max(20, int(ref_size / 80))
+        legend_y = max(20, int(ref_size / 100))
+        legend_x = max(10, int(ref_size / 200))
+
+        cv2.putText(result, "GREEN = Ground Truth (JSON)", (legend_x, legend_y),
+                   cv2.FONT_HERSHEY_SIMPLEX, legend_font_scale, (0, 255, 0), legend_font_thickness)
+        cv2.putText(result, "BLUE = Detected", (legend_x, legend_y + legend_spacing),
+                   cv2.FONT_HERSHEY_SIMPLEX, legend_font_scale, (255, 100, 0), legend_font_thickness)
+        cv2.putText(result, "RED = Error", (legend_x, legend_y + legend_spacing * 2),
+                   cv2.FONT_HERSHEY_SIMPLEX, legend_font_scale, (0, 0, 255), legend_font_thickness)
 
         cv2.imwrite(str(output_path), result)
 

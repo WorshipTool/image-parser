@@ -212,7 +212,6 @@ class TestCornerAccuracy:
         # Load ground truth
         gt_data = ground_truth[image_name]
         tolerance = gt_data["tolerance_pixels"]
-        config = gt_data["config"]
 
         # Load image
         image_path = test_images_dir / image_name
@@ -228,8 +227,8 @@ class TestCornerAccuracy:
         gt_corners[:, 0] *= w  # x coordinates
         gt_corners[:, 1] *= h  # y coordinates
 
-        # Detect corners
-        detector = PaperDetector(**config)
+        # Detect corners with default settings
+        detector = PaperDetector()
         detected_corners = detector.detect(image)
 
         assert detected_corners is not None, f"Paper not detected in {image_name}"

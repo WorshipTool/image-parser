@@ -1,0 +1,118 @@
+{
+  "IMG_20230826_092914.jpg": {
+    "corners": [
+      [
+        -27371.0390625,
+        -51769.296875
+      ],
+      [
+        2389.469482421875,
+        1920.0885009765625
+      ],
+      [
+        1378.613525390625,
+        2601.92138671875
+      ],
+      [
+        600.058837890625,
+        3127.061279296875
+      ]
+    ],
+    "tolerance_pixels": 50,
+    "config": {
+      "brightness_threshold": 180,
+      "min_area_ratio": 0.005
+    },
+    "image_size": [
+      2736,
+      3648
+    ]
+  },
+  "IMG_20230826_093159.jpg": {
+    "corners": [
+      [
+        758.0,
+        1071.0
+      ],
+      [
+        2491.0,
+        1721.0
+      ],
+      [
+        2073.0,
+        2966.0
+      ],
+      [
+        262.0,
+        2309.0
+      ]
+    ],
+    "tolerance_pixels": 50,
+    "config": {
+      "brightness_threshold": 200,
+      "min_area_ratio": 0.01
+    },
+    "image_size": [
+      2736,
+      3648
+    ]
+  },
+  "test_image_1.jpeg": {
+    "corners": [
+      [
+        101.0,
+        44.0
+      ],
+      [
+        171.0,
+        74.0
+      ],
+      [
+        131.0,
+        180.0
+      ],
+      [
+        60.0,
+        174.0
+      ]
+    ],
+    "tolerance_pixels": 50,
+    "config": {
+      "brightness_threshold": 180,
+      "min_area_ratio": 0.005
+    },
+    "image_size": [
+      217,
+      232
+    ]
+  },
+  "test_image_2.jpg": {
+    "corners": [
+      [
+        0.0,
+        3843.0
+      ],
+      [
+        3023.0,
+        3712.0
+      ],
+      [
+        975.0,
+        4031.0
+      ],
+      [
+        395.0,
+        3811.0
+      ]
+    ],
+    "tolerance_pixels": 50,
+    "config": {
+      "brightness_threshold": 180,
+      "min_area_ratio": 0.005
+    },
+    "image_size": [
+      3024,
+      4032
+    ]
+  }
+}

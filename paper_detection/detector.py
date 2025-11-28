@@ -21,7 +21,8 @@ class PaperDetector:
         min_area_ratio: float = 0.01,
         approx_epsilon: float = 0.02,
         use_threshold_method: bool = True,
-        use_fallback_canny: bool = True
+        use_fallback_canny: bool = True,
+        use_edge_extrapolation: bool = True
     ):
         """
         Initialize the detector.
@@ -32,12 +33,14 @@ class PaperDetector:
             approx_epsilon: Epsilon for polygon approximation (as ratio of perimeter)
             use_threshold_method: Use threshold method instead of Canny edge detection
             use_fallback_canny: Use Canny edge detection as fallback if threshold method fails
+            use_edge_extrapolation: Use Hough line detection to extrapolate corners outside image
         """
         self.brightness_threshold = brightness_threshold
         self.min_area_ratio = min_area_ratio
         self.approx_epsilon = approx_epsilon
         self.use_threshold_method = use_threshold_method
         self.use_fallback_canny = use_fallback_canny
+        self.use_edge_extrapolation = use_edge_extrapolation
 
     def detect(self, image: np.ndarray) -> Optional[np.ndarray]:
         """
@@ -168,7 +171,14 @@ class PaperDetector:
         if not candidates:
             # Try fallback Canny detection for difficult images
             if self.use_fallback_canny and self.use_threshold_method:
-                return self._detect_with_canny_fallback(image, gray)
+                result = self._detect_with_canny_fallback(image, gray)
+                if result is not None:
+                    return result
+
+                # If Canny also failed, try edge extrapolation
+                if self.use_edge_extrapolation:
+                    return self._detect_with_edge_extrapolation(image, gray)
+
             return None
 
         # Sort by score (largest and brightest)
@@ -177,12 +187,39 @@ class PaperDetector:
         # Take the best candidate
         best_candidate = candidates[0]
 
+        # Always try edge extrapolation if enabled, as it can find corners outside image bounds
+        edge_extrapolation_result = None
+        if self.use_edge_extrapolation:
+            edge_extrapolation_result = self._detect_with_edge_extrapolation(image, gray)
+
         # If best candidate is near edge and we have fallback, try Canny
         if (self.use_fallback_canny and self.use_threshold_method and
             best_candidate['is_near_edge'] and best_candidate['rectangularity'] < 0.8):
             fallback_result = self._detect_with_canny_fallback(image, gray)
             if fallback_result is not None:
+                # Compare with edge extrapolation if available
+                if edge_extrapolation_result is not None:
+                    fallback_metrics = self.get_paper_metrics(fallback_result, image.shape)
+                    extrapolation_metrics = self.get_paper_metrics(edge_extrapolation_result, image.shape)
+
+                    # Prefer edge extrapolation if it gives better rectangularity
+                    if extrapolation_metrics['rectangularity'] > fallback_metrics['rectangularity'] + 0.1:
+                        return edge_extrapolation_result
+
                 return fallback_result
+
+        # If edge extrapolation found a result, compare with best candidate
+        if edge_extrapolation_result is not None:
+            candidate_corners = best_candidate['contour'].reshape(4, 2)
+            candidate_metrics = self.get_paper_metrics(candidate_corners, image.shape)
+            edge_metrics = self.get_paper_metrics(edge_extrapolation_result, image.shape)
+
+            # Prefer edge extrapolation if:
+            # 1. Rectangularity is significantly better (more rectangular)
+            # 2. OR if best candidate is near edge and edge extrapolation has decent rectangularity
+            if (edge_metrics['rectangularity'] > candidate_metrics['rectangularity'] + 0.1 or
+                (best_candidate['is_near_edge'] and edge_metrics['rectangularity'] > 0.4)):
+                return edge_extrapolation_result
 
         paper_contour = best_candidate['contour']
 
@@ -319,6 +356,176 @@ class PaperDetector:
         corners = self._order_corners(paper_contour.reshape(4, 2))
         return corners
 
+    def _detect_with_edge_extrapolation(self, image: np.ndarray, gray: np.ndarray) -> Optional[np.ndarray]:
+        """
+        Detect paper using Hough line detection and extrapolate corners outside image.
+        This method can find all 4 corners even if some are outside the image bounds.
+
+        Args:
+            image: Original image
+            gray: Grayscale image
+
+        Returns:
+            Array with 4 paper corners (may be outside image bounds) or None
+        """
+        # Strong edge detection with stronger parameters to get main edges only
+        blurred = cv2.GaussianBlur(gray, (7, 7), 0)
+        edges = cv2.Canny(blurred, 75, 200)
+
+        # Detect only strong, long lines using Hough transform
+        lines = cv2.HoughLines(edges, 1, np.pi/180, threshold=250)  # Higher threshold for main edges only
+
+        if lines is None or len(lines) < 4:
+            return None
+
+        # Filter lines on left side of image (where paper typically is)
+        img_h, img_w = gray.shape
+        left_lines = []
+
+        for line in lines:
+            rho, theta = line[0]
+            a, b = np.cos(theta), np.sin(theta)
+            x0 = a * rho
+
+            # Keep lines on left 70% of image
+            if x0 < img_w * 0.7:
+                left_lines.append((rho, theta))
+
+        if len(left_lines) < 4:
+            return None
+
+        # Find 4 dominant orientations (4 edges of paper)
+        # Group lines by angle
+        def angle_diff(theta1, theta2):
+            diff = abs(theta1 - theta2) * 180 / np.pi
+            return min(diff, 180 - diff)
+
+        orientations = []
+        for rho, theta in left_lines:
+            is_new = True
+            for existing_theta in orientations:
+                if angle_diff(theta, existing_theta) < 20:  # Within 20 degrees
+                    is_new = False
+                    break
+
+            if is_new and len(orientations) < 4:
+                orientations.append(theta)
+
+        if len(orientations) < 2:  # Need at least 2 orientations (2 pairs of parallel edges)
+            return None
+
+        # For each orientation, select both parallel edges (first and last in rho order)
+        main_edges = []
+        for target_theta in orientations:
+            candidates = [(rho, theta) for rho, theta in left_lines
+                         if angle_diff(theta, target_theta) < 20]
+
+            if candidates:
+                candidates.sort(key=lambda x: x[0])
+                # Select first and last (the two parallel edges)
+                if len(candidates) >= 2:
+                    main_edges.append(candidates[0])
+                    main_edges.append(candidates[-1])
+                elif len(candidates) == 1:
+                    main_edges.append(candidates[0])
+
+        if len(main_edges) < 3:  # Need at least 3 edges to form corners
+            return None
+
+        # Calculate intersections of all edge pairs
+        def line_intersection(line1, line2):
+            rho1, theta1 = line1
+            rho2, theta2 = line2
+
+            a1, b1 = np.cos(theta1), np.sin(theta1)
+            a2, b2 = np.cos(theta2), np.sin(theta2)
+
+            det = a1 * b2 - a2 * b1
+            if abs(det) < 1e-10:
+                return None
+
+            x = (b2 * rho1 - b1 * rho2) / det
+            y = (a1 * rho2 - a2 * rho1) / det
+
+            return np.array([x, y])
+
+        corners = []
+        for i in range(len(main_edges)):
+            for j in range(i+1, len(main_edges)):
+                intersection = line_intersection(main_edges[i], main_edges[j])
+                if intersection is not None:
+                    corners.append(intersection)
+
+        if len(corners) < 4:
+            return None
+
+        # Remove duplicate corners that are too close together
+        corners = np.array(corners)
+        unique_corners = []
+        for corner in corners:
+            is_duplicate = False
+            for existing in unique_corners:
+                dist = np.linalg.norm(corner - existing)
+                if dist < 50:  # Less than 50 pixels apart
+                    is_duplicate = True
+                    break
+            if not is_duplicate:
+                unique_corners.append(corner)
+
+        corners = np.array(unique_corners)
+
+        if len(corners) < 4:
+            return None
+
+        # Find the 4 corners that form the largest quadrilateral
+        # Try to select corners that are well-distributed
+
+        # Calculate convex hull to get outer corners
+        try:
+            from scipy.spatial import ConvexHull
+            hull = ConvexHull(corners)
+            hull_corners = corners[hull.vertices]
+
+            if len(hull_corners) >= 4:
+                # Take first 4 points of convex hull
+                corners = hull_corners[:4]
+            elif len(hull_corners) == 3:
+                # If we only have 3 corners, extrapolate the 4th
+                # (this handles the case where one corner is far outside)
+                return None
+        except:
+            # If scipy not available or ConvexHull fails, use simpler method
+            # Select 4 corners that are most spread out
+            if len(corners) > 4:
+                # Calculate center
+                center = corners.mean(axis=0)
+
+                # Calculate angles from center
+                angles = np.arctan2(corners[:, 1] - center[1], corners[:, 0] - center[0])
+
+                # Sort by angle and pick evenly distributed corners
+                sorted_indices = np.argsort(angles)
+                step = len(sorted_indices) // 4
+                selected_indices = [sorted_indices[i * step] for i in range(4)]
+                corners = corners[selected_indices]
+
+        # Order corners properly
+        ordered_corners = self._order_corners(corners)
+
+        # Validate that these corners make sense
+        # Check that they form a reasonably large quadrilateral
+        area = cv2.contourArea(ordered_corners.astype(np.int32))
+        image_area = img_h * img_w
+        coverage = area / image_area
+
+        # Accept if coverage is reasonable
+        # Can be > 1 (even much larger) if corners are outside image bounds
+        # Just ensure it's not too small (< 5% of image)
+        if abs(coverage) > 0.05:
+            return ordered_corners
+
+        return None
+
     def _order_corners(self, corners: np.ndarray) -> np.ndarray:
         """
         Order corners in correct order: top-left, top-right, bottom-right, bottom-left.
@@ -402,37 +609,118 @@ class PaperDetector:
 
         return width, height
 
+    def _clip_polygon_to_image(self, corners: np.ndarray, image_shape: Tuple[int, int, int]) -> np.ndarray:
+        """
+        Clip polygon to image boundaries.
+
+        When corners are outside image bounds, this creates a clipped polygon
+        that represents only the visible part of the paper.
+
+        Args:
+            corners: Original corners (may be outside image)
+            image_shape: Shape of the image (height, width, channels)
+
+        Returns:
+            Clipped polygon points (may have more than 4 points)
+        """
+        h, w = image_shape[:2]
+
+        # Create clip rectangle (image boundaries)
+        clip_rect = np.array([
+            [0, 0],
+            [w, 0],
+            [w, h],
+            [0, h]
+        ], dtype=np.float32)
+
+        # Use Sutherland-Hodgman polygon clipping algorithm
+        def clip_polygon_component(polygon, edge_p1, edge_p2):
+            """Clip polygon against one edge"""
+            clipped = []
+
+            for i in range(len(polygon)):
+                current = polygon[i]
+                next_point = polygon[(i + 1) % len(polygon)]
+
+                # Edge vector
+                edge = edge_p2 - edge_p1
+                # Normal pointing inward (left of edge)
+                normal = np.array([-edge[1], edge[0]])
+
+                # Check if points are inside (left of edge)
+                current_inside = np.dot(current - edge_p1, normal) >= 0
+                next_inside = np.dot(next_point - edge_p1, normal) >= 0
+
+                if current_inside and next_inside:
+                    # Both inside
+                    clipped.append(next_point)
+                elif current_inside and not next_inside:
+                    # Leaving - add intersection
+                    t = np.dot(current - edge_p1, normal) / np.dot(current - next_point, normal)
+                    intersection = current + t * (next_point - current)
+                    clipped.append(intersection)
+                elif not current_inside and next_inside:
+                    # Entering - add intersection and next
+                    t = np.dot(current - edge_p1, normal) / np.dot(current - next_point, normal)
+                    intersection = current + t * (next_point - current)
+                    clipped.append(intersection)
+                    clipped.append(next_point)
+                # else: both outside - skip
+
+            return np.array(clipped) if clipped else np.array([])
+
+        # Clip against all 4 edges
+        clipped = corners.copy()
+        for i in range(4):
+            if len(clipped) == 0:
+                break
+            edge_p1 = clip_rect[i]
+            edge_p2 = clip_rect[(i + 1) % 4]
+            clipped = clip_polygon_component(clipped, edge_p1, edge_p2)
+
+        return clipped
+
     def get_paper_metrics(self, corners: np.ndarray, image_shape: Tuple[int, int, int]) -> Dict[str, float]:
         """
         Calculate quality metrics for detected paper.
 
         Args:
             corners: Ordered paper corners [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+                    (corners may be outside image bounds)
             image_shape: Shape of the original image (height, width, channels)
 
         Returns:
             Dictionary with metrics:
-                - cover_ratio: Ratio of paper area to image area (0-1)
+                - cover_ratio: Ratio of VISIBLE paper area to image area (0-1)
                 - rectangularity: How rectangular the shape is (0-1, 1=perfect rectangle)
                 - angle: Rotation angle of paper relative to horizontal (-90 to 90 degrees)
                 - perspective_angle: Perspective distortion angle (0=no distortion)
         """
-        # Calculate contour area
-        contour_area = cv2.contourArea(corners.astype(np.int32))
+        # Clip polygon to image boundaries for accurate cover_ratio
+        clipped_corners = self._clip_polygon_to_image(corners, image_shape)
+
+        # Calculate VISIBLE area (clipped to image boundaries)
+        if len(clipped_corners) >= 3:
+            visible_area = cv2.contourArea(clipped_corners.astype(np.int32))
+        else:
+            visible_area = 0
 
         # Calculate image area
         image_area = image_shape[0] * image_shape[1]
 
-        # 1. Cover ratio - what percentage of image does the paper occupy
-        cover_ratio = contour_area / image_area
+        # 1. Cover ratio - what percentage of image does the VISIBLE paper occupy
+        cover_ratio = visible_area / image_area if image_area > 0 else 0
 
-        # 2. Rectangularity - how well does the contour fit a rectangle
-        # Get minimum area rectangle
+        # 2. Rectangularity - how well does the FULL paper shape fit a rectangle
+        # Use original corners (even if outside image) for geometric properties
+        full_paper_area = abs(cv2.contourArea(corners.astype(np.float32)))
+
+        # Get minimum area rectangle of full paper
         rect = cv2.minAreaRect(corners.astype(np.float32))
         rect_area = rect[1][0] * rect[1][1]
 
-        if rect_area > 0:
-            rectangularity = contour_area / rect_area
+        if rect_area > 0 and full_paper_area > 0:
+            rectangularity = full_paper_area / rect_area
         else:
             rectangularity = 0.0
 

@@ -36,6 +36,109 @@ class PaperVisualizer:
         self.overlay_color = overlay_color
         self.overlay_alpha = overlay_alpha
 
+    def _clip_line_to_image(self, p1: np.ndarray, p2: np.ndarray, img_shape: Tuple[int, int]) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+        """
+        Clip a line segment to image boundaries using Cohen-Sutherland algorithm.
+
+        Args:
+            p1: First point [x, y]
+            p2: Second point [x, y]
+            img_shape: Image shape (height, width)
+
+        Returns:
+            Tuple of clipped points (p1_clipped, p2_clipped) or (None, None) if line is completely outside
+        """
+        h, w = img_shape
+        x1, y1 = float(p1[0]), float(p1[1])
+        x2, y2 = float(p2[0]), float(p2[1])
+
+        # Cohen-Sutherland clipping
+        INSIDE, LEFT, RIGHT, BOTTOM, TOP = 0, 1, 2, 4, 8
+
+        def compute_outcode(x, y):
+            code = INSIDE
+            if x < 0: code |= LEFT
+            elif x > w: code |= RIGHT
+            if y < 0: code |= TOP
+            elif y > h: code |= BOTTOM
+            return code
+
+        outcode1 = compute_outcode(x1, y1)
+        outcode2 = compute_outcode(x2, y2)
+
+        while True:
+            # Both points inside
+            if outcode1 == 0 and outcode2 == 0:
+                return np.array([x1, y1]), np.array([x2, y2])
+
+            # Both points in same outside region
+            if outcode1 & outcode2:
+                return None, None
+
+            # At least one point outside, pick it
+            outcode_out = outcode1 if outcode1 else outcode2
+
+            # Find intersection point
+            if outcode_out & TOP:
+                x = x1 + (x2 - x1) * (0 - y1) / (y2 - y1)
+                y = 0
+            elif outcode_out & BOTTOM:
+                x = x1 + (x2 - x1) * (h - y1) / (y2 - y1)
+                y = h
+            elif outcode_out & RIGHT:
+                y = y1 + (y2 - y1) * (w - x1) / (x2 - x1)
+                x = w
+            elif outcode_out & LEFT:
+                y = y1 + (y2 - y1) * (0 - x1) / (x2 - x1)
+                x = 0
+
+            # Replace point outside with intersection
+            if outcode_out == outcode1:
+                x1, y1 = x, y
+                outcode1 = compute_outcode(x1, y1)
+            else:
+                x2, y2 = x, y
+                outcode2 = compute_outcode(x2, y2)
+
+    def _draw_clipped_polygon(self, image: np.ndarray, corners: np.ndarray, color: Tuple[int, int, int], thickness: int):
+        """
+        Draw polygon with lines clipped to image boundaries.
+
+        Args:
+            image: Image to draw on
+            corners: Polygon corners
+            color: Line color
+            thickness: Line thickness
+        """
+        h, w = image.shape[:2]
+
+        # Draw each edge with clipping
+        for i in range(len(corners)):
+            p1 = corners[i]
+            p2 = corners[(i + 1) % len(corners)]
+
+            p1_clip, p2_clip = self._clip_line_to_image(p1, p2, (h, w))
+
+            if p1_clip is not None and p2_clip is not None:
+                cv2.line(
+                    image,
+                    tuple(p1_clip.astype(np.int32)),
+                    tuple(p2_clip.astype(np.int32)),
+                    color,
+                    thickness
+                )
+
+        # Draw circles at corners that are inside image
+        for corner in corners:
+            if 0 <= corner[0] <= w and 0 <= corner[1] <= h:
+                cv2.circle(
+                    image,
+                    tuple(corner.astype(np.int32)),
+                    radius=5,
+                    color=color,
+                    thickness=-1
+                )
+
     def visualize(
         self,
         image: np.ndarray,
@@ -76,25 +179,14 @@ class PaperVisualizer:
                 0
             )
 
-        # Blue frame
+        # Blue frame - use clipped drawing to handle corners outside image
         if draw_border:
-            cv2.polylines(
+            self._draw_clipped_polygon(
                 result,
-                [corners_int],
-                isClosed=True,
-                color=self.border_color,
-                thickness=self.border_thickness
+                corners,
+                self.border_color,
+                self.border_thickness
             )
-
-            # Draw circles at corners
-            for corner in corners_int:
-                cv2.circle(
-                    result,
-                    tuple(corner),
-                    radius=5,
-                    color=self.border_color,
-                    thickness=-1
-                )
 
         return result
 

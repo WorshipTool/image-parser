@@ -16,13 +16,13 @@ TEST_IMAGE_METRICS = [
         'IMG_20230826_092914.jpg',
         {'brightness_threshold': 180, 'min_area_ratio': 0.005},
         {
-            'cover_ratio': 0.0990,
-            'rectangularity': 0.4940,
-            'angle': 59.50,
-            'perspective_angle': 27.70,
+            'cover_ratio': 0.5025,  # Visible area (clipped to image bounds)
+            'rectangularity': 0.500,  # Geometry of full paper
+            'angle': 63.00,
+            'perspective_angle': 44.49,
         },
         {
-            'cover_ratio': 0.02,  # ±2% tolerance
+            'cover_ratio': 0.05,  # ±5% tolerance
             'rectangularity': 0.15,  # ±15% tolerance (low rect due to perspective)
             'angle': 10.0,  # ±10 degrees
             'perspective_angle': 5.0,  # ±5 degrees

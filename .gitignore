@@ -172,3 +172,6 @@ temp/
 .vscode
 
 .env
+
+# Test output images
+paper_detection/tests/output/

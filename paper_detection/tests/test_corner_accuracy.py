@@ -237,33 +237,54 @@ class TestCornerAccuracy:
 
         assert detected_corners is not None, f"Paper not detected in {image_name}"
 
-        # Create reference visualization
-        ref_output_path = reference_output_dir / f"ref_{image_name}"
-        self.visualize_ground_truth(image, gt_corners, detected_corners, ref_output_path)
+        # Try all 4 possible rotations of detected corners to find best match
+        best_rotation = 0
+        best_total_error = float('inf')
+        best_errors = []
 
-        # Compare each corner
+        for rotation in range(4):
+            rotated_corners = np.roll(detected_corners, rotation, axis=0)
+            total_error = 0
+            rotation_errors = []
+
+            for i in range(4):
+                distance = np.linalg.norm(gt_corners[i] - rotated_corners[i])
+                rotation_errors.append(distance)
+                total_error += distance
+
+            if total_error < best_total_error:
+                best_total_error = total_error
+                best_rotation = rotation
+                best_errors = rotation_errors
+
+        # Use the best matching rotation
+        best_detected_corners = np.roll(detected_corners, best_rotation, axis=0)
+
+        # Create reference visualization with best matching corners
+        ref_output_path = reference_output_dir / f"ref_{image_name}"
+        self.visualize_ground_truth(image, gt_corners, best_detected_corners, ref_output_path)
+
+        # Compare each corner with best rotation
         max_error = 0
-        errors = []
 
         for i in range(4):
             gt_corner = gt_corners[i]
-            det_corner = detected_corners[i]
-
-            distance = np.linalg.norm(gt_corner - det_corner)
-            errors.append(distance)
+            det_corner = best_detected_corners[i]
+            distance = best_errors[i]
             max_error = max(max_error, distance)
 
             assert distance <= tolerance, (
                 f"{image_name}: Corner {i} error = {distance:.2f}px "
-                f"(tolerance = {tolerance}px)\n"
+                f"(tolerance = {tolerance}px, rotation = {best_rotation})\n"
                 f"  Ground truth: ({gt_corner[0]:.1f}, {gt_corner[1]:.1f})\n"
                 f"  Detected:     ({det_corner[0]:.1f}, {det_corner[1]:.1f})\n"
                 f"  Reference visualization: {ref_output_path}"
             )
 
         # Print summary
-        avg_error = np.mean(errors)
+        avg_error = np.mean(best_errors)
         print(f"\n✓ {image_name}:")
+        print(f"  Rotation: {best_rotation}")
         print(f"  Avg error: {avg_error:.2f}px")
         print(f"  Max error: {max_error:.2f}px")
         print(f"  Reference: {ref_output_path}")

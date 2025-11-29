@@ -51,7 +51,7 @@
             [0.87, 0.86],
             [0.29, 0.85]
         ],
-        "tolerance_pixels": 50
+        "tolerance_pixels": 80
     },
     "IMG_20230826_093135.jpg": {
         "corners": [

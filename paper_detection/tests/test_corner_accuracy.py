@@ -195,6 +195,10 @@ class TestCornerAccuracy:
         "IMG_20230826_093159.jpg",
         "test_image_1.jpeg",
         "test_image_2.jpg",
+        "IMG_20230826_092616.jpg",
+        "IMG_20230826_092855.jpg",
+        "IMG_20230826_093135.jpg",
+        "IMG_20230826_093705.jpg",
     ])
     def test_corner_detection_accuracy(
         self,

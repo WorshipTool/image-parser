@@ -191,17 +191,17 @@ class TestCornerAccuracy:
         cv2.imwrite(str(output_path), result)
 
     @pytest.mark.parametrize("image_name", [
-        # "IMG_20230826_092914.jpg",
-        # "IMG_20230826_093159.jpg",
-        # "test_image_1.jpeg",
-        # "test_image_2.jpg",
-        # "IMG_20230826_092616.jpg",
-        # "IMG_20230826_092855.jpg",
-        # "IMG_20230826_093135.jpg",
-        # "IMG_20230826_093705.jpg",
-        # "test_image_3.jpeg",
-        # "IMG_20230826_092420.jpg",
-        # "IMG_20230826_095708.jpg",
+        "IMG_20230826_092914.jpg",
+        "IMG_20230826_093159.jpg",
+        "test_image_1.jpeg",
+        "test_image_2.jpg",
+        "IMG_20230826_092616.jpg",
+        "IMG_20230826_092855.jpg",
+        "IMG_20230826_093135.jpg",
+        "IMG_20230826_093705.jpg",
+        "test_image_3.jpeg",
+        "IMG_20230826_092420.jpg",
+        "IMG_20230826_095708.jpg",
         "IMG_20230826_100320.jpg",
     ])
     def test_corner_detection_accuracy(

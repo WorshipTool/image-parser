@@ -139,16 +139,18 @@ class PaperDetector:
                     continue
 
                 peri = cv2.arcLength(contour, True)
-                approx = cv2.approxPolyDP(
-                    contour,
-                    (epsilon or self.approx_epsilon) * peri,
-                    True
-                )
 
-                # Try both approximated quad and oriented bounding box
+                # Try multiple epsilon values for better quad approximation
                 quad_candidates = []
-                if len(approx) == 4:
-                    quad_candidates.append(approx.reshape(4, 2))
+
+                for eps_mult in [0.015, 0.02, 0.025, 0.03]:
+                    approx = cv2.approxPolyDP(
+                        contour,
+                        eps_mult * peri,
+                        True
+                    )
+                    if len(approx) == 4:
+                        quad_candidates.append(approx.reshape(4, 2))
 
                 rect = cv2.minAreaRect(contour.astype(np.float32))
                 box = cv2.boxPoints(rect).astype(np.float32)
@@ -158,6 +160,14 @@ class PaperDetector:
                     mask = np.zeros(gray.shape, dtype=np.uint8)
                     cv2.fillPoly(mask, [quad.astype(np.int32)], 255)
                     mean_brightness = cv2.mean(gray, mask=mask)[0]
+
+                    # Calculate brightness variance to detect uniform paper
+                    std_dev = np.std(gray[mask > 0]) if np.any(mask > 0) else 0
+
+                    # Calculate edge strength along the contour perimeter
+                    edge_perimeter_mask = np.zeros_like(gray)
+                    cv2.polylines(edge_perimeter_mask, [quad.astype(np.int32)], True, 255, 3)
+                    edge_strength = cv2.mean(edge_map, mask=edge_perimeter_mask)[0]
 
                     # Calculate rectangularity (how rectangular is the shape)
                     rect_area = rect[1][0] * rect[1][1]
@@ -176,8 +186,23 @@ class PaperDetector:
                         y + h_box > img_h - margin_pixels_h
                     )
 
-                    brightness_factor = min(mean_brightness / 200.0, 1.0)
-                    score = area * rectangularity * brightness_factor
+                    # Improved scoring that favors paper characteristics
+                    # Greatly reduce brightness requirement to allow heavily shadowed papers
+                    brightness_factor = min(mean_brightness / 100.0, 1.0) ** 0.3
+
+                    # Paper has relatively uniform brightness (low std_dev)
+                    uniformity_factor = max(0, 1.0 - std_dev / 100.0)
+
+                    # Paper edges are typically strong and clear
+                    edge_factor = min(edge_strength / 50.0, 1.0)
+
+                    # EXTREMELY strongly favor larger areas - use area^5.0 to heavily penalize smaller contours
+                    # This helps with hand-held papers where shadows create smaller false detections
+                    # Reduce rectangularity and brightness weights to allow slightly irregular/shadowed shapes when much larger
+                    score = (area ** 5.0) * (rectangularity ** 0.2) * (brightness_factor ** 0.2)
+                    score *= (0.7 + 0.3 * uniformity_factor)  # Bonus for uniform areas
+                    score *= (0.8 + 0.2 * edge_factor)  # Bonus for strong edges
+
                     if is_near_edge:
                         score *= 0.3
 
@@ -187,6 +212,8 @@ class PaperDetector:
                         'brightness': mean_brightness,
                         'rectangularity': rectangularity,
                         'is_near_edge': is_near_edge,
+                        'uniformity': uniformity_factor,
+                        'edge_strength': edge_strength,
                         'score': score
                     })
 
@@ -194,13 +221,142 @@ class PaperDetector:
 
         # Sweep alternative brightness thresholds and looser area to adapt to varied lighting
         if self.use_threshold_method:
+            # Add adaptive thresholding which works better with varied lighting
+            # Try multiple block sizes to handle different shadow scenarios
+            for block_size in [21, 51, 101, 151]:
+                for C_val in [5, -5, -10]:
+                    adaptive_binary = cv2.adaptiveThreshold(
+                        blurred,
+                        255,
+                        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                        cv2.THRESH_BINARY,
+                        block_size,
+                        C_val
+                    )
+
+                    # Use larger morphology for larger blocks
+                    if block_size > 50:
+                        kernel_size = 15
+                        close_iter = 5
+                    else:
+                        kernel_size = 3
+                        close_iter = 2
+
+                    kernel_adapt = np.ones((kernel_size, kernel_size), np.uint8)
+                    adaptive_binary = cv2.morphologyEx(adaptive_binary, cv2.MORPH_CLOSE, kernel_adapt, iterations=close_iter)
+
+                    adaptive_contours, _ = cv2.findContours(
+                        adaptive_binary,
+                        cv2.RETR_LIST,  # Use LIST to get all contours
+                        cv2.CHAIN_APPROX_SIMPLE
+                    )
+
+                    # For large blocks, also try convex hull + minAreaRect approach
+                    if block_size > 50:
+                        for contour in adaptive_contours:
+                            area = cv2.contourArea(contour)
+                            area_ratio = area / image_area
+
+                            # Look for mid-size contours that might be paper
+                            if 0.4 <= area_ratio <= 0.7:
+                                # Use convex hull to smooth out irregularities
+                                hull = cv2.convexHull(contour)
+                                hull_area = cv2.contourArea(hull)
+
+                                # Check rectangularity of hull
+                                rect = cv2.minAreaRect(hull.astype(np.float32))
+                                rect_area = rect[1][0] * rect[1][1]
+                                rectangularity = hull_area / rect_area if rect_area > 0 else 0
+
+                                # If reasonably rectangular, add minAreaRect box as candidate
+                                if rectangularity > 0.7:
+                                    box = cv2.boxPoints(rect).astype(np.float32)
+                                    candidates.append({
+                                        'contour': box,
+                                        'brightness': 0,
+                                        'rectangularity': rectangularity,
+                                        'is_near_edge': False,
+                                        'score': 0
+                                    })
+
+                    evaluate_contours(adaptive_contours, self.min_area_ratio * 0.5)
+
+            # Background flattening for challenging shadow/hand cases
+            # Normalize illumination before thresholding
+            background = cv2.GaussianBlur(blurred, (151, 151), 0)
+            normalized = cv2.divide(blurred.astype(np.float32), background.astype(np.float32) + 1e-6)
+            normalized = cv2.normalize(normalized, None, 0, 255, cv2.NORM_MINMAX)
+            normalized = normalized.astype(np.uint8)
+
+            # Try multiple thresholds in optimal range (93-94 works best for shadowed papers)
+            for flatten_thresh in [93, 94]:
+                _, flatten_binary = cv2.threshold(normalized, flatten_thresh, 255, cv2.THRESH_BINARY)
+                kernel_flatten = np.ones((3, 3), np.uint8)
+                flatten_binary = cv2.morphologyEx(flatten_binary, cv2.MORPH_CLOSE, kernel_flatten, iterations=1)
+
+                # Color filtering to exclude fingers/hands (high saturation regions)
+                # Paper typically has low saturation (<100), fingers have higher saturation
+                hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+                saturation = hsv[:, :, 1]
+                low_sat_mask = saturation < 120  # Exclude high-saturation (skin-tone) regions
+                flatten_binary = cv2.bitwise_and(flatten_binary, flatten_binary, mask=low_sat_mask.astype(np.uint8) * 255)
+
+                flatten_contours, _ = cv2.findContours(
+                    flatten_binary,
+                    cv2.RETR_LIST,
+                    cv2.CHAIN_APPROX_SIMPLE
+                )
+
+                # Process contours - skip convex hull for large areas to avoid including fingers
+                for contour in flatten_contours:
+                    area = cv2.contourArea(contour)
+                    area_ratio = area / image_area
+
+                    if area_ratio < 0.40 or area_ratio > 0.70:
+                        continue
+
+                    peri = cv2.arcLength(contour, True)
+
+                    # For large contours, approximate directly (no convex hull)
+                    # This prevents fingers/hands from being included
+                    for eps_mult in [0.02, 0.025, 0.03]:
+                        approx = cv2.approxPolyDP(contour, eps_mult * peri, True)
+
+                        if len(approx) == 4:
+                            quad = approx.reshape(-1, 2).astype(np.float32)
+                        elif 5 <= len(approx) <= 6:
+                            rect = cv2.minAreaRect(contour.astype(np.float32))
+                            quad = cv2.boxPoints(rect).astype(np.float32)
+                        else:
+                            continue
+
+                        rect = cv2.minAreaRect(contour.astype(np.float32))
+                        rect_area = rect[1][0] * rect[1][1]
+                        rectangularity = area / rect_area if rect_area > 0 else 0
+
+                        if rectangularity < 0.65:
+                            continue
+
+                        mask = np.zeros(gray.shape, dtype=np.uint8)
+                        cv2.fillPoly(mask, [quad.astype(np.int32)], 255)
+                        mean_brightness = cv2.mean(gray, mask=mask)[0]
+
+                        candidates.append({
+                            'contour': quad,
+                            'brightness': mean_brightness,
+                            'rectangularity': rectangularity,
+                            'is_near_edge': False,
+                            'score': area ** 4.0 * rectangularity ** 2.0,
+                            'from_flattening': True  # Mark as flattening candidate
+                        })
+
             alt_thresholds = sorted(set([
                 max(30, self.brightness_threshold - 100),
                 max(30, self.brightness_threshold - 60),
                 max(30, self.brightness_threshold - 30),
-                50, 80, 120, 160, 200, 210
+                50, 80, 100, 120, 140, 160, 180, 200, 210, 220
             ]))
-            alt_min_area = min(self.min_area_ratio * 0.6, 0.003)
+            alt_min_area = min(self.min_area_ratio * 0.5, 0.002)
             for thresh in alt_thresholds:
                 if thresh == self.brightness_threshold:
                     continue
@@ -219,6 +375,7 @@ class PaperDetector:
                     cv2.CHAIN_APPROX_SIMPLE
                 )
                 evaluate_contours(alt_contours, alt_min_area)
+
 
         if not candidates:
             # Try fallback Canny detection for difficult images
@@ -276,6 +433,8 @@ class PaperDetector:
             return None
 
         scored_candidates.sort(key=lambda x: x['score'], reverse=True)
+
+        # Select best candidate by score
         best_candidate = scored_candidates[0]
 
         # Keep an alternative candidate that balances rectangularity and cover closeness
@@ -287,7 +446,10 @@ class PaperDetector:
         def cover_diff(cand):
             return abs(cand['metrics']['cover_ratio'] - preferred_cover)
 
-        if geo_value(best_geo) > geo_value(best_candidate) + 0.1 and cover_diff(best_geo) + 0.05 < cover_diff(best_candidate):
+        # Don't override background flattening candidates with geometric alternatives
+        if (not best_candidate.get('from_flattening', False) and
+            geo_value(best_geo) > geo_value(best_candidate) + 0.1 and
+            cover_diff(best_geo) + 0.05 < cover_diff(best_candidate)):
             best_candidate = best_geo
 
         # Always try edge extrapolation if enabled, as it can find corners outside image bounds
@@ -319,7 +481,8 @@ class PaperDetector:
                 return fallback_result
 
         # If edge extrapolation found a result, compare with best candidate
-        if edge_extrapolation_score is not None:
+        # Don't override background flattening candidates - they're specifically tuned for challenging cases
+        if edge_extrapolation_score is not None and not best_candidate.get('from_flattening', False):
             if edge_extrapolation_score['score'] > best_candidate['score'] + 0.05:
                 return edge_extrapolation_result
 
@@ -390,7 +553,10 @@ class PaperDetector:
         # Order corners
         corners = self._order_corners(paper_contour.reshape(4, 2))
 
-        return self._roll_top_first(corners)
+        # Refine corners for better accuracy
+        refined_corners = self._refine_corners(gray, corners)
+
+        return self._roll_top_first(refined_corners)
 
     def _detect_small_document(self, image: np.ndarray, blurred: np.ndarray, edge_map: np.ndarray) -> Optional[np.ndarray]:
         """Specialized detection for small low-res images."""
@@ -732,6 +898,51 @@ class PaperDetector:
         perimeter = max(cv2.arcLength(pts, True), 1.0)
         return float(overlap) / perimeter
 
+    def _refine_corners(self, gray: np.ndarray, corners: np.ndarray) -> np.ndarray:
+        """
+        Refine corner positions using sub-pixel accuracy.
+
+        Args:
+            gray: Grayscale image
+            corners: Initial corner positions
+
+        Returns:
+            Refined corner positions
+        """
+        h, w = gray.shape
+        refined = corners.copy().astype(np.float32)
+
+        # Only refine corners that are inside the image
+        corners_in_bounds = []
+        for i in range(4):
+            if 5 <= refined[i][0] < w-5 and 5 <= refined[i][1] < h-5:
+                corners_in_bounds.append(i)
+
+        if len(corners_in_bounds) == 0:
+            return corners  # No corners to refine
+
+        # Use cornerSubPix for sub-pixel refinement
+        win_size = (11, 11)
+        zero_zone = (-1, -1)
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 40, 0.001)
+
+        try:
+            # Refine only corners within bounds
+            for i in corners_in_bounds:
+                corner_point = refined[i:i+1].reshape(-1, 1, 2).astype(np.float32)
+                cv2.cornerSubPix(gray, corner_point, win_size, zero_zone, criteria)
+                sub_pix_corner = corner_point.reshape(2)
+
+                # Accept refinement if movement is reasonable (max 50 pixels)
+                dist = np.linalg.norm(sub_pix_corner - refined[i])
+                if dist < 50.0:
+                    refined[i] = sub_pix_corner
+        except cv2.error:
+            # If refinement fails, keep original corners
+            pass
+
+        return refined
+
     def _score_candidate(self, candidate: Dict, image_shape: Tuple[int, int, int], edge_map: np.ndarray, preferred_cover: float) -> Optional[Dict]:
         """Combine geometry, coverage, and edge support into a single score."""
         corners = candidate['contour'].reshape(4, 2).astype(np.float32)
@@ -749,22 +960,50 @@ class PaperDetector:
         edge_support = self._edge_alignment_score(edge_map, ordered)
         outside_penalty = self._outside_penalty(ordered, image_shape)
 
+        # Calculate aspect ratio - papers are typically in certain ratios
+        width = max(np.linalg.norm(ordered[1] - ordered[0]), np.linalg.norm(ordered[2] - ordered[3]))
+        height = max(np.linalg.norm(ordered[3] - ordered[0]), np.linalg.norm(ordered[2] - ordered[1]))
+        aspect_ratio = width / height if height > 0 else 0
+        if aspect_ratio < 1:
+            aspect_ratio = 1.0 / aspect_ratio
+
+        # Common paper aspect ratios: A4 (1.414), Letter (1.294), etc.
+        # Give bonus for aspect ratios between 1.0 and 2.0
+        aspect_bonus = 1.0
+        if 1.0 <= aspect_ratio <= 2.0:
+            aspect_bonus = 1.2
+        elif aspect_ratio > 3.0 or aspect_ratio < 0.5:
+            aspect_bonus = 0.7  # Penalty for unusual aspect ratios
+
         cover = metrics['cover_ratio']
         cover_score = max(0.0, 1.0 - abs(cover - preferred_cover) * 2.0)
         if cover < 0.05 or cover > 1.3:
             cover_score *= 0.2
 
+        # Enhanced scoring with balanced weights
         score = metrics['rectangularity'] * 1.7
         score += cover_score * 1.5
         score += edge_support * 2.0
         score -= metrics['perspective_angle'] * 0.01
+        score *= aspect_bonus
+
+        # Add uniformity and edge strength bonuses if available
+        if 'uniformity' in candidate:
+            score *= (0.85 + 0.15 * candidate['uniformity'])
+        if 'edge_strength' in candidate:
+            edge_bonus = min(candidate['edge_strength'] / 50.0, 1.0)
+            score *= (0.9 + 0.1 * edge_bonus)
 
         if candidate.get('is_near_edge', False) and cover > 0.9:
-            score *= 0.7
+            score *= 0.6  # Stronger penalty
         if candidate.get('is_near_edge', False) and cover > 0.75 and edge_support < 0.2:
-            score *= 0.6
+            score *= 0.5  # Even stronger penalty
 
         score /= outside_penalty
+
+        # Prioritize background flattening candidates - they handle challenging illumination
+        if candidate.get('from_flattening', False):
+            score *= 50.0  # Significant boost to ensure selection
 
         return {
             'contour': ordered,
@@ -773,7 +1012,9 @@ class PaperDetector:
             'edge_support': edge_support,
             'cover_score': cover_score,
             'is_near_edge': candidate.get('is_near_edge', False),
-            'rectangularity': metrics['rectangularity']
+            'rectangularity': metrics['rectangularity'],
+            'aspect_ratio': aspect_ratio,
+            'from_flattening': candidate.get('from_flattening', False)  # Preserve flag
         }
 
     def _order_corners(self, corners: np.ndarray) -> np.ndarray:

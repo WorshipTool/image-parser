@@ -70,5 +70,55 @@
             [0.27, 0.77]
         ],
         "tolerance_pixels": 50
+    },
+    "test_image_3.jpeg": {
+        "corners": [
+            [0.2, 0.2],
+            [0.8, 0.2],
+            [0.8, 0.8],
+            [0.2, 0.8]
+        ],
+        "tolerance_pixels": 50,
+        "note": "TEMPORARY - manually adjust corners"
+    },
+    "IMG_20230803_092445.jpg": {
+        "corners": [
+            [0.2, 0.2],
+            [0.8, 0.2],
+            [0.8, 0.8],
+            [0.2, 0.8]
+        ],
+        "tolerance_pixels": 50,
+        "note": "TEMPORARY - manually adjust corners"
+    },
+    "IMG_20230826_092420.jpg": {
+        "corners": [
+            [0.18, 0.22],
+            [0.8, 0.22],
+            [0.8, 0.88],
+            [0.15, 0.88]
+        ],
+        "tolerance_pixels": 50,
+        "note": "TEMPORARY - manually adjust corners"
+    },
+    "IMG_20230826_095708.jpg": {
+        "corners": [
+            [0.3, 0.08],
+            [0.94, 0.2],
+            [0.7, 0.92],
+            [0.03, 0.78]
+        ],
+        "tolerance_pixels": 50,
+        "note": "TEMPORARY - manually adjust corners"
+    },
+    "IMG_20230826_100320.jpg": {
+        "corners": [
+            [0.19, 0.09],
+            [0.83, 0.2],
+            [0.75, 0.82],
+            [0.12, 0.67]
+        ],
+        "tolerance_pixels": 50,
+        "note": "TEMPORARY - manually adjust corners"
     }
 }

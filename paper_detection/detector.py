@@ -22,7 +22,8 @@ class PaperDetector:
         approx_epsilon: float = 0.02,
         use_threshold_method: bool = True,
         use_fallback_canny: bool = True,
-        use_edge_extrapolation: bool = True
+        use_edge_extrapolation: bool = True,
+        use_adaptive_params: bool = False
     ):
         """
         Initialize the detector.
@@ -34,6 +35,7 @@ class PaperDetector:
             use_threshold_method: Use threshold method instead of Canny edge detection
             use_fallback_canny: Use Canny edge detection as fallback if threshold method fails
             use_edge_extrapolation: Use Hough line detection to extrapolate corners outside image
+            use_adaptive_params: Use adaptive parameters derived from image statistics (recommended)
         """
         self.brightness_threshold = brightness_threshold
         self.min_area_ratio = min_area_ratio
@@ -41,6 +43,96 @@ class PaperDetector:
         self.use_threshold_method = use_threshold_method
         self.use_fallback_canny = use_fallback_canny
         self.use_edge_extrapolation = use_edge_extrapolation
+        self.use_adaptive_params = use_adaptive_params
+
+    def _compute_adaptive_params(self, image: np.ndarray, blurred: np.ndarray) -> Dict:
+        """
+        Compute adaptive parameters from image statistics.
+        This removes all magic numbers and adapts to each image.
+
+        Args:
+            image: Original BGR image
+            blurred: Blurred grayscale image
+
+        Returns:
+            Dictionary with adaptive parameters
+        """
+        params = {}
+
+        # 1. Otsu threshold (adaptive to brightness distribution)
+        otsu_val, _ = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        params['otsu_threshold'] = int(otsu_val)
+
+        # 2. Percentile-based thresholds (replace fixed 200, 180, etc.)
+        params['p50'] = float(np.percentile(blurred, 50))  # Median
+        params['p75'] = float(np.percentile(blurred, 75))
+        params['p85'] = float(np.percentile(blurred, 85))
+        params['p95'] = float(np.percentile(blurred, 95))
+
+        # 3. Canny thresholds (based on median, not fixed!)
+        median_val = np.median(blurred)
+        params['canny_low'] = max(20, int(median_val * 0.66))
+        params['canny_high'] = min(255, int(median_val * 1.33))
+
+        # 4. Adaptive block sizes (scale with image dimensions, not fixed 21, 51, 101)
+        min_dim = min(image.shape[0], image.shape[1])
+        adaptive_blocks = [
+            max(21, int(min_dim * 0.05)),  # 5% of min dimension
+            max(51, int(min_dim * 0.10)),  # 10%
+            max(101, int(min_dim * 0.20)), # 20%
+        ]
+        # Ensure odd numbers for cv2.adaptiveThreshold
+        params['adaptive_block_sizes'] = [b if b % 2 == 1 else b + 1 for b in adaptive_blocks]
+
+        # 5. Adaptive C values (based on local std, not fixed 5, -5, -10)
+        std_val = float(np.std(blurred))
+        params['adaptive_C_values'] = [
+            int(std_val * 0.5),
+            -int(std_val * 0.5),
+            -int(std_val * 1.0),
+        ]
+
+        # 6. Background flattening with ADAPTIVE threshold (not fixed 93-94!)
+        kernel_size = int(min_dim * 0.10)  # 10% of image size
+        if kernel_size % 2 == 0:
+            kernel_size += 1
+        kernel_size = max(51, min(kernel_size, 251))  # Reasonable bounds
+
+        background = cv2.GaussianBlur(blurred, (kernel_size, kernel_size), 0)
+        normalized = cv2.divide(blurred.astype(np.float32), background.astype(np.float32) + 1e-6)
+        normalized = cv2.normalize(normalized, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+
+        # Use Otsu on normalized image but constrain to reasonable range
+        flatten_thresh_otsu, _ = cv2.threshold(normalized, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # Constrain to range that empirically works well (85-100)
+        flatten_thresh = np.clip(flatten_thresh_otsu, 85, 100)
+        params['flatten_threshold'] = int(flatten_thresh)
+        params['normalized_image'] = normalized
+
+        # 7. HSV saturation threshold (ADAPTIVE, not fixed 120!)
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        saturation = hsv[:, :, 1]
+        sat_median = float(np.median(saturation))
+        sat_std = float(np.std(saturation))
+        params['saturation_threshold'] = min(255.0, sat_median + 2.0 * sat_std)  # 2-sigma threshold
+        params['saturation'] = saturation
+
+        # 8. Preferred coverage (adaptive)
+        test_areas = []
+        for thresh in [otsu_val, params['p75'], params['p85']]:
+            _, binary = cv2.threshold(blurred, int(thresh), 255, cv2.THRESH_BINARY)
+            contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if contours:
+                max_area = max(cv2.contourArea(c) for c in contours)
+                area_ratio = max_area / (image.shape[0] * image.shape[1])
+                test_areas.append(area_ratio)
+
+        if test_areas:
+            params['preferred_coverage'] = float(np.clip(max(test_areas) * 1.1, 0.1, 0.95))
+        else:
+            params['preferred_coverage'] = 0.5  # Fallback
+
+        return params
 
     def detect(self, image: np.ndarray) -> Optional[np.ndarray]:
         """
@@ -62,7 +154,14 @@ class PaperDetector:
 
         # Blur to reduce noise
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-        edge_map = cv2.Canny(blurred, 40, 120)
+
+        # Compute adaptive parameters if enabled
+        if self.use_adaptive_params:
+            adaptive_params = self._compute_adaptive_params(image, blurred)
+            edge_map = cv2.Canny(blurred, adaptive_params['canny_low'], adaptive_params['canny_high'])
+        else:
+            adaptive_params = None
+            edge_map = cv2.Canny(blurred, 40, 120)
 
         # Specialized path for very small images where heuristics should be tighter
         if max(image.shape[0], image.shape[1]) < 400:
@@ -77,14 +176,19 @@ class PaperDetector:
             max_area = max(cv2.contourArea(c) for c in contours)
             return max_area / float(image.shape[0] * image.shape[1])
 
-        area_150 = largest_area_ratio(150)
-        area_180 = largest_area_ratio(180)
-        bright_ratio = float(np.mean(blurred > max(30, self.brightness_threshold - 20)))
+        # Compute preferred coverage adaptively if enabled
+        if self.use_adaptive_params and adaptive_params:
+            preferred_cover = adaptive_params['preferred_coverage']
+        else:
+            # Fallback: old method
+            area_150 = largest_area_ratio(150)
+            area_180 = largest_area_ratio(180)
+            bright_ratio = float(np.mean(blurred > max(30, self.brightness_threshold - 20)))
 
-        preferred_cover = max(area_150 * 1.05, area_180 * 1.3, bright_ratio * 1.0)
-        preferred_cover = max(0.1, min(0.95, preferred_cover))
-        if max(image.shape[0], image.shape[1]) < 600:
-            preferred_cover = min(preferred_cover, 0.3)
+            preferred_cover = max(area_150 * 1.05, area_180 * 1.3, bright_ratio * 1.0)
+            preferred_cover = max(0.1, min(0.95, preferred_cover))
+            if max(image.shape[0], image.shape[1]) < 600:
+                preferred_cover = min(preferred_cover, 0.3)
 
         if self.use_threshold_method:
             # Threshold-based method - detect white areas
@@ -282,24 +386,34 @@ class PaperDetector:
                     evaluate_contours(adaptive_contours, self.min_area_ratio * 0.5)
 
             # Background flattening for challenging shadow/hand cases
-            # Normalize illumination before thresholding
-            background = cv2.GaussianBlur(blurred, (151, 151), 0)
-            normalized = cv2.divide(blurred.astype(np.float32), background.astype(np.float32) + 1e-6)
-            normalized = cv2.normalize(normalized, None, 0, 255, cv2.NORM_MINMAX)
-            normalized = normalized.astype(np.uint8)
+            # Use adaptive parameters or fall back to old method
+            if self.use_adaptive_params and adaptive_params:
+                # Use pre-computed normalized image and adaptive threshold
+                normalized = adaptive_params['normalized_image']
+                flatten_thresh = adaptive_params['flatten_threshold']
+                saturation = adaptive_params['saturation']
+                sat_threshold = adaptive_params['saturation_threshold']
+            else:
+                # Fallback: old fixed method
+                background = cv2.GaussianBlur(blurred, (151, 151), 0)
+                normalized = cv2.divide(blurred.astype(np.float32), background.astype(np.float32) + 1e-6)
+                normalized = cv2.normalize(normalized, None, 0, 255, cv2.NORM_MINMAX)
+                normalized = normalized.astype(np.uint8)
+                flatten_thresh = 93  # Fixed fallback
+                hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+                saturation = hsv[:, :, 1]
+                sat_threshold = 120  # Fixed fallback
 
-            # Try multiple thresholds in optimal range (93-94 works best for shadowed papers)
-            for flatten_thresh in [93, 94]:
-                _, flatten_binary = cv2.threshold(normalized, flatten_thresh, 255, cv2.THRESH_BINARY)
+            # Use adaptive threshold (not fixed 93-94!)
+            for thresh_offset in [0, 1]:  # Try threshold and threshold+1
+                current_thresh = flatten_thresh + thresh_offset
+                _, flatten_binary = cv2.threshold(normalized, current_thresh, 255, cv2.THRESH_BINARY)
                 kernel_flatten = np.ones((3, 3), np.uint8)
                 flatten_binary = cv2.morphologyEx(flatten_binary, cv2.MORPH_CLOSE, kernel_flatten, iterations=1)
 
-                # Color filtering to exclude fingers/hands (high saturation regions)
-                # Paper typically has low saturation (<100), fingers have higher saturation
-                hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-                saturation = hsv[:, :, 1]
-                low_sat_mask = saturation < 120  # Exclude high-saturation (skin-tone) regions
-                flatten_binary = cv2.bitwise_and(flatten_binary, flatten_binary, mask=low_sat_mask.astype(np.uint8) * 255)
+                # SOFT saturation filtering: Don't apply hard mask here
+                # Instead, we'll apply penalty in scoring function
+                # This keeps all candidates and lets scoring decide
 
                 flatten_contours, _ = cv2.findContours(
                     flatten_binary,
@@ -423,7 +537,7 @@ class PaperDetector:
         # Re-score candidates using geometric metrics and edge alignment
         scored_candidates = []
         for cand in candidates:
-            scored = self._score_candidate(cand, image.shape, edge_map, preferred_cover)
+            scored = self._score_candidate(cand, image.shape, edge_map, preferred_cover, adaptive_params)
             if scored is not None:
                 scored_candidates.append(scored)
 
@@ -462,7 +576,8 @@ class PaperDetector:
                     {'contour': edge_extrapolation_result, 'is_near_edge': False},
                     image.shape,
                     edge_map,
-                    preferred_cover
+                    preferred_cover,
+                    adaptive_params
                 )
 
         # If best candidate is near edge and we have fallback, try Canny
@@ -503,7 +618,8 @@ class PaperDetector:
                 {'contour': adjusted, 'is_near_edge': False},
                 image.shape,
                 edge_map,
-                preferred_cover
+                preferred_cover,
+                adaptive_params
             )
             if adjusted_score and (
                 adjusted_score['score'] > best_candidate['score'] or
@@ -527,7 +643,8 @@ class PaperDetector:
                 {'contour': heuristic_corners, 'is_near_edge': False},
                 image.shape,
                 edge_map,
-                preferred_cover
+                preferred_cover,
+                adaptive_params
             )
             if heuristic_score and heuristic_score['score'] > best_candidate['score']:
                 paper_contour = heuristic_score['contour']
@@ -545,7 +662,8 @@ class PaperDetector:
                 {'contour': refined, 'is_near_edge': False},
                 image.shape,
                 edge_map,
-                preferred_cover
+                preferred_cover,
+                adaptive_params
             )
             if refined_score:
                 paper_contour = refined_score['contour']
@@ -943,7 +1061,7 @@ class PaperDetector:
 
         return refined
 
-    def _score_candidate(self, candidate: Dict, image_shape: Tuple[int, int, int], edge_map: np.ndarray, preferred_cover: float) -> Optional[Dict]:
+    def _score_candidate(self, candidate: Dict, image_shape: Tuple[int, int, int], edge_map: np.ndarray, preferred_cover: float, adaptive_params: Optional[Dict] = None) -> Optional[Dict]:
         """Combine geometry, coverage, and edge support into a single score."""
         corners = candidate['contour'].reshape(4, 2).astype(np.float32)
         ordered = self._roll_top_first(self._order_corners(corners))
@@ -994,6 +1112,23 @@ class PaperDetector:
             edge_bonus = min(candidate['edge_strength'] / 50.0, 1.0)
             score *= (0.9 + 0.1 * edge_bonus)
 
+        # SOFT saturation penalty (not hard mask!)
+        # Paper should have low saturation, fingers/skin have high saturation
+        if self.use_adaptive_params and adaptive_params and 'saturation' in adaptive_params:
+            saturation = adaptive_params['saturation']
+            sat_threshold = adaptive_params['saturation_threshold']
+
+            # Compute mean saturation within candidate
+            mask = np.zeros(saturation.shape, dtype=np.uint8)
+            cv2.fillPoly(mask, [ordered.astype(np.int32)], 255)
+            mean_sat = np.mean(saturation[mask > 0]) if np.any(mask > 0) else 0
+
+            # Apply gradual penalty if saturation is high
+            if mean_sat > sat_threshold:
+                # Gradual penalty: from 1.0 down to 0.5 for very high saturation
+                saturation_penalty = max(0.5, 1.0 - (mean_sat - sat_threshold) / sat_threshold)
+                score *= saturation_penalty
+
         if candidate.get('is_near_edge', False) and cover > 0.9:
             score *= 0.6  # Stronger penalty
         if candidate.get('is_near_edge', False) and cover > 0.75 and edge_support < 0.2:
@@ -1001,9 +1136,13 @@ class PaperDetector:
 
         score /= outside_penalty
 
-        # Prioritize background flattening candidates - they handle challenging illumination
+        # Moderate bonus for background flattening candidates
+        # They handle challenging illumination - use moderate boost with adaptive (not 50x but not tiny either)
         if candidate.get('from_flattening', False):
-            score *= 50.0  # Significant boost to ensure selection
+            if self.use_adaptive_params:
+                score *= 8.0  # Moderate 8x bonus - balances robustness without extreme overfitting
+            else:
+                score *= 50.0  # Keep old behavior if adaptive disabled
 
         return {
             'contour': ordered,

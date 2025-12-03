@@ -37,6 +37,11 @@ FONT = cv2.FONT_HERSHEY_SIMPLEX
 FONT_SCALE = 0.7
 FONT_THICKNESS = 2
 
+# Zoom window constants
+ZOOM_SIZE = 200  # Size of zoom window
+ZOOM_FACTOR = 4  # Magnification factor
+ZOOM_REGION = 50  # Size of region to capture around corner
+
 class CornerEditor:
     def __init__(self):
         self.load_ground_truth()
@@ -133,6 +138,66 @@ class CornerEditor:
         elif event == cv2.EVENT_LBUTTONUP:
             self.dragging_corner = None
 
+    def draw_zoom_window(self, display, corner_pos, corner_index):
+        """Draw a magnified view of the area around the corner"""
+        cx, cy = int(corner_pos[0]), int(corner_pos[1])
+
+        # Calculate region to capture
+        x1 = max(0, cx - ZOOM_REGION)
+        y1 = max(0, cy - ZOOM_REGION)
+        x2 = min(self.width, cx + ZOOM_REGION)
+        y2 = min(self.height, cy + ZOOM_REGION)
+
+        # Extract region
+        region = self.image[y1:y2, x1:x2].copy()
+
+        if region.size == 0:
+            return
+
+        # Resize to zoom size
+        zoomed = cv2.resize(region, (ZOOM_SIZE, ZOOM_SIZE), interpolation=cv2.INTER_LINEAR)
+
+        # Calculate center position in zoomed image
+        center_x = int((cx - x1) / (x2 - x1) * ZOOM_SIZE)
+        center_y = int((cy - y1) / (y2 - y1) * ZOOM_SIZE)
+
+        # Draw crosshair at center
+        cv2.line(zoomed, (center_x - 20, center_y), (center_x + 20, center_y), (0, 0, 255), 2)
+        cv2.line(zoomed, (center_x, center_y - 20), (center_x, center_y + 20), (0, 0, 255), 2)
+        cv2.circle(zoomed, (center_x, center_y), 5, (0, 0, 255), -1)
+
+        # Add border
+        cv2.rectangle(zoomed, (0, 0), (ZOOM_SIZE - 1, ZOOM_SIZE - 1), (255, 255, 255), 3)
+        cv2.rectangle(zoomed, (0, 0), (ZOOM_SIZE - 1, ZOOM_SIZE - 1), (0, 0, 0), 1)
+
+        # Add label
+        label = f"Corner {corner_index}"
+        cv2.putText(zoomed, label, (10, 25), FONT, 0.6, (0, 0, 0), 3)
+        cv2.putText(zoomed, label, (10, 25), FONT, 0.6, (255, 255, 255), 2)
+
+        # Position zoom window near the corner
+        # Offset to the right and down to avoid obscuring the corner
+        offset_x = 40
+        offset_y = 40
+
+        zoom_x = cx + offset_x
+        zoom_y = cy + offset_y
+
+        # If too close to right edge, show on left side
+        if zoom_x + ZOOM_SIZE > self.width - 10:
+            zoom_x = cx - ZOOM_SIZE - offset_x
+
+        # If too close to bottom edge, show on top
+        if zoom_y + ZOOM_SIZE > self.height - 10:
+            zoom_y = cy - ZOOM_SIZE - offset_y
+
+        # Make sure it's not off screen
+        zoom_x = max(10, min(zoom_x, self.width - ZOOM_SIZE - 10))
+        zoom_y = max(10, min(zoom_y, self.height - ZOOM_SIZE - 10))
+
+        # Overlay on display
+        display[zoom_y:zoom_y + ZOOM_SIZE, zoom_x:zoom_x + ZOOM_SIZE] = zoomed
+
     def draw_ui(self):
         """Draw the UI"""
         display = self.image.copy()
@@ -189,6 +254,10 @@ class CornerEditor:
             cv2.rectangle(display, (5, y_pos - 20), (15 + text_width, y_pos + 5), (0, 0, 0), -1)
             # Draw text
             cv2.putText(display, text, (10, y_pos), FONT, 0.6, (255, 255, 255), 2)
+
+        # Draw zoom window if dragging a corner
+        if self.dragging_corner is not None:
+            self.draw_zoom_window(display, self.corners[self.dragging_corner], self.dragging_corner)
 
         return display
 

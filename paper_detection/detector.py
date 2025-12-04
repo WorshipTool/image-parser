@@ -18,7 +18,7 @@ class PaperDetector:
     def __init__(
         self,
         brightness_threshold: int = 200,
-        min_area_ratio: float = 0.01,
+        min_area_ratio: float = 0.005,
         approx_epsilon: float = 0.02,
         use_threshold_method: bool = True,
         use_fallback_canny: bool = True,
@@ -185,8 +185,9 @@ class PaperDetector:
             area_180 = largest_area_ratio(180)
             bright_ratio = float(np.mean(blurred > max(30, self.brightness_threshold - 20)))
 
-            preferred_cover = max(area_150 * 1.05, area_180 * 1.3, bright_ratio * 1.0)
-            preferred_cover = max(0.1, min(0.95, preferred_cover))
+            # Balanced multipliers to handle both small and large papers
+            preferred_cover = max(area_150 * 0.95, area_180 * 1.1, bright_ratio * 0.8)
+            preferred_cover = max(0.1, min(0.75, preferred_cover))  # Cap at 0.75 for balance
             if max(image.shape[0], image.shape[1]) < 600:
                 preferred_cover = min(preferred_cover, 0.3)
 
@@ -1099,11 +1100,18 @@ class PaperDetector:
             cover_score *= 0.2
 
         # Enhanced scoring with balanced weights
-        score = metrics['rectangularity'] * 1.7
-        score += cover_score * 1.5
-        score += edge_support * 2.0
+        # Higher weight for edge support to prefer actual paper edges
+        score = metrics['rectangularity'] * 2.0
+        score += cover_score * 0.7  # Moderate weight for coverage
+        score += edge_support * 5.0  # High weight - prefer strong edges
         score -= metrics['perspective_angle'] * 0.01
         score *= aspect_bonus
+
+        # Penalize very large candidates (cover > 0.5) that might include background
+        if cover > 0.5:
+            score *= 0.7  # Moderate penalty for large detections
+        if cover > 0.7:
+            score *= 0.5  # Heavy penalty for very large detections
 
         # Add uniformity and edge strength bonuses if available
         if 'uniformity' in candidate:
@@ -1137,12 +1145,9 @@ class PaperDetector:
         score /= outside_penalty
 
         # Moderate bonus for background flattening candidates
-        # They handle challenging illumination - use moderate boost with adaptive (not 50x but not tiny either)
+        # They handle challenging illumination - use moderate boost
         if candidate.get('from_flattening', False):
-            if self.use_adaptive_params:
-                score *= 8.0  # Moderate 8x bonus - balances robustness without extreme overfitting
-            else:
-                score *= 50.0  # Keep old behavior if adaptive disabled
+            score *= 3.0  # Moderate boost, not overwhelming
 
         return {
             'contour': ordered,

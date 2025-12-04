@@ -175,3 +175,8 @@ temp/
 
 # Test output images
 paper_detection/tests/output/
+
+# ML model checkpoints and training artifacts
+paper_detection/models/
+*.pth
+training_history.json

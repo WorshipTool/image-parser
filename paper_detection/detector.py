@@ -1,18 +1,29 @@
 """
-Paper detector for images using OpenCV
+Paper detector for images using OpenCV and optional ML detection
 """
 
 import cv2
 import numpy as np
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple, Dict, Literal
+
+# Try to import ML detection components with graceful fallback
+try:
+    from .ml import MLPaperDetector, InferenceConfig
+    ML_AVAILABLE = True
+except ImportError:
+    ML_AVAILABLE = False
+    MLPaperDetector = None
+    InferenceConfig = None
 
 
 class PaperDetector:
     """
     Class for paper detection in images.
 
-    Uses edge detection and contour algorithms to find
-    rectangular paper in the image.
+    Supports multiple detection methods:
+    - OpenCV-based detection using edge detection and contour algorithms
+    - Machine Learning-based detection (optional, requires ML module)
+    - Hybrid mode with ML detection and OpenCV fallback
     """
 
     def __init__(
@@ -23,7 +34,9 @@ class PaperDetector:
         use_threshold_method: bool = True,
         use_fallback_canny: bool = True,
         use_edge_extrapolation: bool = True,
-        use_adaptive_params: bool = False
+        use_adaptive_params: bool = False,
+        detection_mode: Literal["opencv", "ml", "ml_with_fallback"] = "opencv",
+        ml_model_path: Optional[str] = None
     ):
         """
         Initialize the detector.
@@ -36,6 +49,11 @@ class PaperDetector:
             use_fallback_canny: Use Canny edge detection as fallback if threshold method fails
             use_edge_extrapolation: Use Hough line detection to extrapolate corners outside image
             use_adaptive_params: Use adaptive parameters derived from image statistics (recommended)
+            detection_mode: Detection method to use:
+                - "opencv": Traditional OpenCV-based detection (default)
+                - "ml": Machine learning-based detection only
+                - "ml_with_fallback": Try ML first, fallback to OpenCV if it fails
+            ml_model_path: Optional path to ML model file (uses default if not specified)
         """
         self.brightness_threshold = brightness_threshold
         self.min_area_ratio = min_area_ratio
@@ -44,6 +62,25 @@ class PaperDetector:
         self.use_fallback_canny = use_fallback_canny
         self.use_edge_extrapolation = use_edge_extrapolation
         self.use_adaptive_params = use_adaptive_params
+        self.detection_mode = detection_mode
+
+        # Initialize ML detector if needed
+        self.ml_detector = None
+        if detection_mode in ["ml", "ml_with_fallback"]:
+            if not ML_AVAILABLE:
+                raise ImportError(
+                    "ML detection is not available. Please install the ML module "
+                    "or use detection_mode='opencv' for traditional detection."
+                )
+
+            # Create inference config
+            if ml_model_path is not None:
+                config = InferenceConfig(model_path=ml_model_path)
+            else:
+                config = InferenceConfig()
+
+            # Initialize ML detector
+            self.ml_detector = MLPaperDetector(config)
 
     def _compute_adaptive_params(self, image: np.ndarray, blurred: np.ndarray) -> Dict:
         """
@@ -148,6 +185,29 @@ class PaperDetector:
         """
         if image is None or image.size == 0:
             return None
+
+        # Route to appropriate detection method based on mode
+        if self.detection_mode == "ml":
+            return self._detect_ml(image)
+        elif self.detection_mode == "ml_with_fallback":
+            ml_result = self._detect_ml(image)
+            if ml_result is not None and self._validate_ml_result(ml_result, image.shape):
+                return ml_result
+            # Fallback to OpenCV
+            return self._detect_opencv(image)
+        else:  # opencv mode
+            return self._detect_opencv(image)
+
+    def _detect_opencv(self, image: np.ndarray) -> Optional[np.ndarray]:
+        """
+        OpenCV-based paper detection (original method).
+
+        Args:
+            image: Input image (BGR format)
+
+        Returns:
+            Array with 4 paper corners or None if detection failed
+        """
 
         # Convert to grayscale
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -676,6 +736,66 @@ class PaperDetector:
         refined_corners = self._refine_corners(gray, corners)
 
         return self._roll_top_first(refined_corners)
+
+    def _detect_ml(self, image: np.ndarray) -> Optional[np.ndarray]:
+        """
+        Machine learning-based paper detection.
+
+        Args:
+            image: Input image (BGR format)
+
+        Returns:
+            Array with 4 paper corners or None if detection failed
+        """
+        if self.ml_detector is None:
+            return None
+
+        try:
+            corners = self.ml_detector.predict_corners(image)
+            return corners
+        except Exception as e:
+            print(f"ML detection failed: {e}")
+            return None
+
+    def _validate_ml_result(self, corners: np.ndarray, image_shape: tuple) -> bool:
+        """
+        Validate ML detection result before accepting it.
+
+        Args:
+            corners: Detected corners (4, 2) array
+            image_shape: Image shape tuple (height, width, channels)
+
+        Returns:
+            True if result is valid, False otherwise
+        """
+        if corners is None or corners.shape != (4, 2):
+            return False
+
+        # Check if corners are within reasonable bounds (allow 10% outside)
+        h, w = image_shape[:2]
+        tolerance = 0.1
+        x_min, x_max = -w * tolerance, w * (1 + tolerance)
+        y_min, y_max = -h * tolerance, h * (1 + tolerance)
+
+        for x, y in corners:
+            if not (x_min <= x <= x_max and y_min <= y <= y_max):
+                return False
+
+        # Check if area is reasonable (> 100 pixels)
+        # Use Shoelace formula
+        x = corners[:, 0]
+        y = corners[:, 1]
+        area = 0.5 * abs(
+            x[0]*y[1] - x[1]*y[0] +
+            x[1]*y[2] - x[2]*y[1] +
+            x[2]*y[3] - x[3]*y[2] +
+            x[3]*y[0] - x[0]*y[3]
+        )
+
+        if area < 100:
+            return False
+
+        return True
 
     def _detect_small_document(self, image: np.ndarray, blurred: np.ndarray, edge_map: np.ndarray) -> Optional[np.ndarray]:
         """Specialized detection for small low-res images."""

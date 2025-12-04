@@ -24,12 +24,16 @@ Corner Coordinate System:
     - Corners can slightly exceed [0, 1] range if paper extends beyond image edges
 
 Augmentation Pipeline:
-    Training mode applies geometric augmentations randomly:
-    1. Horizontal flip (50% probability) - mirrors image and corners horizontally
-    2. Vertical flip (50% probability) - mirrors image and corners vertically
-    3. Rotation ±15° (50% probability) - rotates image and corners around center
-    4. Color augmentations (via transform parameter) - does not affect corners
-    5. Normalization (via transform parameter) - prepares for model input
+    Uses Albumentations library for robust geometric and photometric augmentations.
+    Training mode applies:
+    - Geometric transforms: rotation, perspective, flips, shift/scale/rotate
+    - Photometric transforms: color jitter, blur, noise, brightness/contrast
+    - All geometric transforms automatically handle keypoint (corner) transformation
+    - Normalization with ImageNet statistics
+
+    Validation mode applies only:
+    - Resize to target size
+    - Normalization with ImageNet statistics
 
 Output Format:
     Each __getitem__ call returns a dictionary:
@@ -46,16 +50,12 @@ import numpy as np
 import cv2
 import torch
 from torch.utils.data import Dataset
-from PIL import Image
-from typing import Dict, List, Optional, Callable
+from typing import Dict, Optional
 
 from .config import TrainingConfig
 from .augmentations import (
-    apply_horizontal_flip,
-    apply_vertical_flip,
-    apply_rotation,
     get_training_augmentation,
-    get_inference_transform
+    get_validation_augmentation
 )
 
 
@@ -72,15 +72,16 @@ class PaperCornersDataset(Dataset):
         ground_truth_path: Path to JSON file with corner annotations
         config: TrainingConfig object with dataset parameters
         mode: Either "train" or "val" for training/validation split
-        transform: Optional callable for photometric augmentations and normalization.
-                   If None, appropriate default transform will be used based on mode.
+        augmentation_strength: Augmentation intensity for training mode.
+                              Options: 'light', 'medium', 'strong' (default: 'strong')
+                              Only used when mode='train'
 
     Attributes:
         images_dir: Directory containing images
         ground_truth_path: Path to ground truth JSON
         config: Training configuration
         mode: Current mode ("train" or "val")
-        transform: Transform pipeline to apply
+        transform: Albumentations transform pipeline with keypoint support
         ground_truth: Loaded ground truth dictionary
         image_names: List of image filenames for current mode (train or val)
 
@@ -104,7 +105,7 @@ class PaperCornersDataset(Dataset):
         ground_truth_path: str,
         config: TrainingConfig,
         mode: str = "train",
-        transform: Optional[Callable] = None
+        augmentation_strength: str = "strong"
     ):
         """Initialize dataset with images, ground truth, and configuration."""
         assert mode in ["train", "val"], f"Mode must be 'train' or 'val', got '{mode}'"
@@ -136,14 +137,14 @@ class PaperCornersDataset(Dataset):
         else:  # val
             self.image_names = [all_image_names[i] for i in val_indices]
 
-        # Set transform (use defaults if not provided)
-        if transform is None:
-            if mode == "train":
-                self.transform = get_training_augmentation(config.image_size)
-            else:
-                self.transform = get_inference_transform(config.image_size)
-        else:
-            self.transform = transform
+        # Create Albumentations transform based on mode
+        if mode == "train":
+            self.transform = get_training_augmentation(
+                config.image_size,
+                augmentation_strength=augmentation_strength
+            )
+        else:  # val
+            self.transform = get_validation_augmentation(config.image_size)
 
         print(f"Initialized {mode} dataset with {len(self.image_names)} images")
 
@@ -159,9 +160,10 @@ class PaperCornersDataset(Dataset):
         1. Loads the image from disk (BGR format)
         2. Converts BGR to RGB
         3. Gets ground truth corners (normalized [0,1])
-        4. Applies geometric augmentations if in training mode
-        5. Resizes image to target size
-        6. Applies photometric augmentations and normalization
+        4. Denormalizes corners to pixel coordinates
+        5. Applies Albumentations transform (resize, augmentation, normalization)
+           - All geometric transforms automatically handle keypoint transformation
+        6. Normalizes augmented corners back to [0,1]
         7. Returns image tensor and flattened corner coordinates
 
         Args:
@@ -174,8 +176,8 @@ class PaperCornersDataset(Dataset):
                 - "image_name": Filename of the image
 
         Note:
-            Geometric augmentations are applied with 50% probability each during training.
-            Multiple augmentations can be applied to the same sample (e.g., both flip and rotation).
+            Albumentations handles all augmentations (geometric and photometric)
+            and automatically transforms keypoints (corners) correctly.
         """
         # Get image name
         image_name = self.image_names[idx]
@@ -188,38 +190,41 @@ class PaperCornersDataset(Dataset):
             raise FileNotFoundError(f"Could not load image: {image_path}")
 
         # Convert BGR to RGB
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        # Get original image dimensions
+        image_height, image_width = image.shape[:2]
 
         # Get corners from ground truth (already normalized [0,1])
-        corners = np.array(self.ground_truth[image_name]["corners"], dtype=np.float32)
+        corners_normalized = np.array(
+            self.ground_truth[image_name]["corners"],
+            dtype=np.float32
+        )
 
-        # Apply geometric augmentations randomly if in training mode
-        if self.mode == "train":
-            # Horizontal flip (50% probability)
-            if np.random.random() < 0.5:
-                image, corners = apply_horizontal_flip(image, corners)
+        # Denormalize corners to pixel coordinates for Albumentations
+        corners_px = corners_normalized.copy()
+        corners_px[:, 0] *= image_width  # Denormalize x
+        corners_px[:, 1] *= image_height  # Denormalize y
 
-            # Vertical flip (50% probability)
-            if np.random.random() < 0.5:
-                image, corners = apply_vertical_flip(image, corners)
+        # Convert corners to list of tuples for Albumentations keypoints format
+        keypoints = [(x, y) for x, y in corners_px]
 
-            # Rotation ±15° (50% probability)
-            if np.random.random() < 0.5:
-                angle = np.random.uniform(-15, 15)
-                image, corners = apply_rotation(image, corners, angle)
+        # Apply Albumentations transform (handles resize, augmentation, normalization)
+        augmented = self.transform(image=image_rgb, keypoints=keypoints)
 
-        # Resize image to target size
-        image = cv2.resize(image, (self.config.image_size, self.config.image_size))
+        # Extract augmented image and keypoints
+        image_tensor = augmented['image']  # Already a torch.Tensor [3, H, W]
+        aug_keypoints = augmented['keypoints']  # List of (x, y) tuples
 
-        # Apply transform (color augmentations + normalization)
-        if self.transform:
-            image = self.transform(image)
+        # Convert keypoints back to numpy array and normalize to [0,1]
+        corners_aug = np.array(aug_keypoints, dtype=np.float32)  # Shape: (4, 2)
+        corners_norm = corners_aug / self.config.image_size  # Normalize to [0, 1]
 
-        # Convert corners to torch.FloatTensor and flatten [4, 2] -> [8]
-        corners_flat = torch.FloatTensor(corners.flatten())
+        # Flatten corners from (4, 2) to (8,)
+        corners_flat = torch.FloatTensor(corners_norm.flatten())
 
         return {
-            "image": image,
+            "image": image_tensor,
             "corners": corners_flat,
             "image_name": image_name
         }
@@ -254,23 +259,3 @@ class PaperCornersDataset(Dataset):
         total_images = len(self.ground_truth)
         train_images = int(total_images * self.config.train_split)
         return total_images - train_images
-
-
-# TODO: Add more sophisticated augmentations when dataset grows (perspective, crop, scale)
-# Currently we use basic augmentations (flip, rotation) that are sufficient for small datasets.
-# As the dataset grows, consider adding:
-# - Perspective transforms to simulate different viewing angles
-# - Random cropping with corner adjustment
-# - Scale/zoom variations
-# - Elastic deformations
-# - More aggressive color augmentations
-# These would help the model generalize better to diverse real-world conditions.
-
-# TODO: Consider K-fold cross-validation for better evaluation
-# With a small dataset, K-fold cross-validation would provide more robust
-# performance estimates and better utilize all available data. This would involve:
-# 1. Splitting data into K folds
-# 2. Training K models, each using a different fold for validation
-# 3. Averaging performance metrics across all folds
-# 4. Selecting the best model based on average validation performance
-# This approach is especially valuable when dataset size is limited (< 100 samples).

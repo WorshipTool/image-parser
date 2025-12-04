@@ -295,16 +295,16 @@ def train_model(
         images_dir=images_dir,
         ground_truth_path=ground_truth_path,
         config=config,
-        mode="train",
-        transform=None  # Will use default augmentation
+        mode="train"
+        # Augmentation automatically selected based on mode
     )
 
     val_dataset = PaperCornersDataset(
         images_dir=images_dir,
         ground_truth_path=ground_truth_path,
         config=config,
-        mode="val",
-        transform=None  # Will use default transform
+        mode="val"
+        # Validation transform automatically selected
     )
 
     print(f"Training samples: {len(train_dataset)}")
@@ -373,6 +373,7 @@ def train_model(
 
     # Best model tracking
     best_val_loss = float("inf")
+    best_val_pixel_error = float("inf")
     best_epoch = 0
     epochs_without_improvement = 0
 
@@ -426,8 +427,9 @@ def train_model(
               f"LR: {current_lr:.6f} | "
               f"Time: {epoch_time:.1f}s")
 
-        # Check if validation loss improved
-        if val_loss < best_val_loss:
+        # Check if validation pixel error improved
+        if val_pixel_error < best_val_pixel_error:
+            best_val_pixel_error = val_pixel_error
             best_val_loss = val_loss
             best_epoch = epoch
             epochs_without_improvement = 0
@@ -440,11 +442,11 @@ def train_model(
                 "optimizer_state_dict": optimizer.state_dict(),
                 "val_loss": val_loss,
                 "val_pixel_error": val_pixel_error,
+                "best_val_pixel_error": best_val_pixel_error,
                 "config": config
             }, model_path)
 
-            print(f"  → Best model saved! (Val Loss: {val_loss:.4f}, "
-                  f"Pixel Error: {val_pixel_error:.2f}px)")
+            print(f"  → Best model saved! (Val Pixel Error: {val_pixel_error:.2f}px)")
 
             # TODO: Add checkpoint saving every N epochs
             # if epoch % 10 == 0:
@@ -457,7 +459,7 @@ def train_model(
             # Check early stopping
             if epochs_without_improvement >= config.early_stopping_patience:
                 print(f"\nEarly stopping triggered after {epoch} epochs")
-                print(f"No improvement for {config.early_stopping_patience} epochs")
+                print(f"No improvement in pixel error for {config.early_stopping_patience} epochs")
                 break
 
         # TODO: Add gradient clipping if training becomes unstable
@@ -470,7 +472,7 @@ def train_model(
     print("=" * 70)
     print(f"Total training time: {total_time / 60:.2f} minutes")
     print(f"Best validation loss: {best_val_loss:.4f} (epoch {best_epoch})")
-    print(f"Best validation pixel error: {min(history['val_pixel_error']):.2f}px")
+    print(f"Best validation pixel error: {best_val_pixel_error:.2f}px (epoch {best_epoch})")
     print(f"Final learning rate: {current_lr:.6f}")
     print(f"Model saved to: {os.path.join(config.save_dir, 'paper_detector_cnn.pth')}")
 

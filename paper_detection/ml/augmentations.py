@@ -1,252 +1,211 @@
 """
-Corner-aware augmentation functions for paper detection training.
+Data augmentation functions for paper corner detection using Albumentations.
 
-This module provides geometric augmentation functions that transform both
-images and corner coordinates consistently. All geometric transforms work
-on normalized coordinates in the range [0, 1].
-
-Coordinate System:
-    - Corners are represented as numpy arrays of shape [4, 2]
-    - Each corner is [x, y] where x and y are in range [0, 1]
-    - (0, 0) is top-left, (1, 1) is bottom-right
-    - Corners order: [top-left, top-right, bottom-right, bottom-left]
+This module provides robust augmentations that correctly transform both images
+and keypoints (corners), crucial for training accurate corner detection models.
 """
 
 import numpy as np
-import torch
-import torchvision.transforms as T
 import cv2
-from typing import Tuple, Callable
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 
 
-def apply_horizontal_flip(image: np.ndarray, corners: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def get_training_augmentation(image_size=224, augmentation_strength='strong'):
     """
-    Flip image horizontally and transform corner coordinates accordingly.
+    Get Albumentations pipeline for training with corner-aware transforms.
 
-    The transformation mirrors the image around the vertical axis, so x-coordinates
-    are inverted while y-coordinates remain unchanged.
+    All geometric transforms automatically handle keypoint transformation,
+    ensuring corners remain correctly aligned with augmented images.
 
     Args:
-        image: Input image as numpy array of shape [H, W, C]
-        corners: Corner coordinates as numpy array of shape [4, 2] in normalized
-                coordinates [0, 1]. Each corner is [x, y].
+        image_size (int): Target image size (will resize to square). Default: 224
+        augmentation_strength (str): Augmentation intensity:
+            - 'light': Minimal augmentation (for large datasets)
+            - 'medium': Moderate augmentation (default)
+            - 'strong': Aggressive augmentation (for small datasets, recommended)
 
     Returns:
-        Tuple of (flipped_image, transformed_corners)
-        - flipped_image: Horizontally flipped image
-        - transformed_corners: Corners with x-coordinates flipped (new_x = 1 - old_x)
+        albumentations.Compose: Augmentation pipeline
 
     Example:
-        >>> image = np.random.rand(224, 224, 3)
-        >>> corners = np.array([[0.2, 0.1], [0.8, 0.1], [0.8, 0.9], [0.2, 0.9]])
-        >>> flipped_img, flipped_corners = apply_horizontal_flip(image, corners)
-        >>> print(flipped_corners)
-        [[0.8, 0.1], [0.2, 0.1], [0.2, 0.9], [0.8, 0.9]]
+        >>> aug = get_training_augmentation(image_size=224, augmentation_strength='strong')
+        >>> # Corners should be in format [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+        >>> # with values in pixel coordinates
+        >>> augmented = aug(image=image, keypoints=corners)
+        >>> aug_image = augmented['image']  # Tensor [3, 224, 224]
+        >>> aug_corners = augmented['keypoints']  # List of (x, y) tuples
     """
-    # Flip image horizontally
-    flipped_image = np.fliplr(image)
 
-    # Transform corners: new_x = 1 - old_x (assuming normalized coords)
-    flipped_corners = corners.copy()
-    flipped_corners[:, 0] = 1.0 - corners[:, 0]
+    if augmentation_strength == 'light':
+        rotate_limit = 10
+        perspective_scale = 0.05
+        brightness_limit = 0.1
+        contrast_limit = 0.1
+        p_geometric = 0.3
+    elif augmentation_strength == 'medium':
+        rotate_limit = 15
+        perspective_scale = 0.1
+        brightness_limit = 0.15
+        contrast_limit = 0.15
+        p_geometric = 0.5
+    else:  # strong (default for small datasets)
+        rotate_limit = 25
+        perspective_scale = 0.2
+        brightness_limit = 0.2
+        contrast_limit = 0.2
+        p_geometric = 0.7
 
-    return flipped_image, flipped_corners
+    transform = A.Compose([
+        # Resize to target size (always applied)
+        A.Resize(height=image_size, width=image_size),
 
-
-def apply_vertical_flip(image: np.ndarray, corners: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Flip image vertically and transform corner coordinates accordingly.
-
-    The transformation mirrors the image around the horizontal axis, so y-coordinates
-    are inverted while x-coordinates remain unchanged.
-
-    Args:
-        image: Input image as numpy array of shape [H, W, C]
-        corners: Corner coordinates as numpy array of shape [4, 2] in normalized
-                coordinates [0, 1]. Each corner is [x, y].
-
-    Returns:
-        Tuple of (flipped_image, transformed_corners)
-        - flipped_image: Vertically flipped image
-        - transformed_corners: Corners with y-coordinates flipped (new_y = 1 - old_y)
-
-    Example:
-        >>> image = np.random.rand(224, 224, 3)
-        >>> corners = np.array([[0.2, 0.1], [0.8, 0.1], [0.8, 0.9], [0.2, 0.9]])
-        >>> flipped_img, flipped_corners = apply_vertical_flip(image, corners)
-        >>> print(flipped_corners)
-        [[0.2, 0.9], [0.8, 0.9], [0.8, 0.1], [0.2, 0.1]]
-    """
-    # Flip image vertically
-    flipped_image = np.flipud(image)
-
-    # Transform corners: new_y = 1 - old_y
-    flipped_corners = corners.copy()
-    flipped_corners[:, 1] = 1.0 - corners[:, 1]
-
-    return flipped_image, flipped_corners
-
-
-def apply_rotation(image: np.ndarray, corners: np.ndarray, angle: float) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Rotate image by angle degrees around center and transform corner coordinates.
-
-    The rotation is performed around the image center (0.5, 0.5) in normalized
-    coordinates. The transformation uses a 2D rotation matrix to update corner
-    positions.
-
-    Args:
-        image: Input image as numpy array of shape [H, W, C]
-        corners: Corner coordinates as numpy array of shape [4, 2] in normalized
-                coordinates [0, 1]. Each corner is [x, y].
-        angle: Rotation angle in degrees. Positive values rotate counter-clockwise.
-              Typically in range [-15, 15] for training augmentation.
-
-    Returns:
-        Tuple of (rotated_image, transformed_corners)
-        - rotated_image: Rotated image (same size as input, may have black borders)
-        - transformed_corners: Corners rotated around center point (0.5, 0.5)
-
-    Note:
-        The rotation is performed around the center of the image. Corners may move
-        slightly outside the [0, 1] range after rotation, which is acceptable for
-        small rotation angles (±15°).
-
-    Example:
-        >>> image = np.random.rand(224, 224, 3)
-        >>> corners = np.array([[0.2, 0.1], [0.8, 0.1], [0.8, 0.9], [0.2, 0.9]])
-        >>> rotated_img, rotated_corners = apply_rotation(image, corners, 10.0)
-    """
-    h, w = image.shape[:2]
-
-    # Get rotation matrix for image rotation (around image center in pixels)
-    center_pixels = (w / 2, h / 2)
-    rotation_matrix = cv2.getRotationMatrix2D(center_pixels, angle, 1.0)
-
-    # Rotate image
-    rotated_image = cv2.warpAffine(image, rotation_matrix, (w, h),
-                                   flags=cv2.INTER_LINEAR,
-                                   borderMode=cv2.BORDER_CONSTANT,
-                                   borderValue=(0, 0, 0))
-
-    # Transform corners using rotation matrix
-    # Convert angle to radians
-    angle_rad = np.radians(angle)
-
-    # Rotation matrix for normalized coordinates (around center point (0.5, 0.5))
-    cos_a = np.cos(angle_rad)
-    sin_a = np.sin(angle_rad)
-
-    # Center point in normalized coords
-    center = np.array([0.5, 0.5])
-
-    # Translate corners to origin, rotate, translate back
-    rotated_corners = corners.copy()
-    for i in range(len(corners)):
-        # Translate to origin (center becomes 0,0)
-        translated = corners[i] - center
-
-        # Apply rotation matrix
-        rotated = np.array([
-            cos_a * translated[0] - sin_a * translated[1],
-            sin_a * translated[0] + cos_a * translated[1]
-        ])
-
-        # Translate back
-        rotated_corners[i] = rotated + center
-
-    return rotated_image, rotated_corners
-
-
-def get_training_augmentation(image_size: int = 224) -> Callable:
-    """
-    Returns a torchvision transform composition for training data augmentation.
-
-    This transform applies color augmentation, blurring, normalization, and
-    conversion to tensor. It does NOT include geometric augmentation (flip,
-    rotation) as those need to be applied separately with corner transformation.
-
-    The transforms are applied in the following order:
-    1. Resize to target size
-    2. ColorJitter for photometric augmentation
-    3. GaussianBlur for robustness to focus variations
-    4. Convert to tensor
-    5. Normalize with ImageNet statistics
-
-    Args:
-        image_size: Target image size (height and width). Default: 224
-
-    Returns:
-        Callable transform that can be applied to PIL images or numpy arrays.
-        The transform expects RGB images and returns normalized tensors.
-
-    Note:
-        For geometric augmentations (horizontal flip, vertical flip, rotation),
-        use the dedicated functions (apply_horizontal_flip, apply_vertical_flip,
-        apply_rotation) before applying this transform, as they also need to
-        transform corner coordinates.
-
-    Example:
-        >>> transform = get_training_augmentation(224)
-        >>> # Apply geometric augmentation first (with corners)
-        >>> image_aug, corners_aug = apply_horizontal_flip(image, corners)
-        >>> # Then apply photometric augmentation (corners unchanged)
-        >>> image_tensor = transform(image_aug)
-    """
-    return T.Compose([
-        T.ToPILImage(),  # Convert numpy array to PIL Image if needed
-        T.Resize((image_size, image_size)),
-        T.ColorJitter(
-            brightness=0.2,  # Random brightness adjustment ±20%
-            contrast=0.2,    # Random contrast adjustment ±20%
-            saturation=0.2,  # Random saturation adjustment ±20%
-            hue=0.1          # Random hue adjustment ±10%
+        # Geometric transformations (with keypoint transformation)
+        A.Rotate(
+            limit=rotate_limit,
+            border_mode=cv2.BORDER_CONSTANT,
+            fill=0,
+            p=p_geometric
         ),
-        T.GaussianBlur(
-            kernel_size=5,
-            sigma=(0.1, 2.0)  # Random blur with sigma between 0.1 and 2.0
+
+        A.Perspective(
+            scale=(0.02, perspective_scale),
+            keep_size=True,
+            p=p_geometric
         ),
-        T.ToTensor(),  # Convert to tensor and scale to [0, 1]
-        T.Normalize(
-            mean=[0.485, 0.456, 0.406],  # ImageNet statistics
+
+        A.HorizontalFlip(p=0.5),
+
+        A.VerticalFlip(p=0.3),
+
+        # ShiftScaleRotate for additional variation
+        A.ShiftScaleRotate(
+            shift_limit=0.1,
+            scale_limit=0.15,
+            rotate_limit=rotate_limit,
+            border_mode=cv2.BORDER_CONSTANT,
+            fill=0,
+            p=p_geometric
+        ),
+
+        # Photometric transformations (don't affect keypoints)
+        A.ColorJitter(
+            brightness=brightness_limit,
+            contrast=contrast_limit,
+            saturation=0.2,
+            hue=0.1,
+            p=0.8
+        ),
+
+        A.OneOf([
+            A.GaussianBlur(blur_limit=(3, 7), p=1.0),
+            A.MotionBlur(blur_limit=5, p=1.0),
+        ], p=0.3),
+
+        A.GaussNoise(std_range=(0.04, 0.2), p=0.3),  # Normalized std values [0,1]
+
+        A.RandomBrightnessContrast(
+            brightness_limit=brightness_limit,
+            contrast_limit=contrast_limit,
+            p=0.5
+        ),
+
+        # Normalize with ImageNet statistics
+        A.Normalize(
+            mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225]
-        )
-    ])
+        ),
+
+        # Convert to PyTorch tensor
+        ToTensorV2(),
+
+    ], keypoint_params=A.KeypointParams(
+        format='xy',  # Keypoints are (x, y) tuples
+        remove_invisible=False,  # Keep keypoints even if outside image after aug
+        label_fields=[]  # No labels, just coordinates
+    ))
+
+    return transform
 
 
-def get_inference_transform(image_size: int = 224) -> Callable:
+def get_validation_augmentation(image_size=224):
     """
-    Returns transform for inference (no augmentation).
+    Get Albumentations pipeline for validation/inference (no augmentation).
 
-    This transform only resizes, converts to tensor, and normalizes with
-    ImageNet statistics. No augmentation is applied.
+    Only applies resize and normalization, no random transforms.
 
     Args:
-        image_size: Target image size (height and width). Default: 224
+        image_size (int): Target image size. Default: 224
 
     Returns:
-        Callable transform that can be applied to PIL images or numpy arrays.
-        The transform expects RGB images and returns normalized tensors.
-
-    Example:
-        >>> transform = get_inference_transform(224)
-        >>> image_tensor = transform(image)
-        >>> # image_tensor is ready for model inference
+        albumentations.Compose: Augmentation pipeline
     """
-    return T.Compose([
-        T.ToPILImage(),  # Convert numpy array to PIL Image if needed
-        T.Resize((image_size, image_size)),
-        T.ToTensor(),  # Convert to tensor and scale to [0, 1]
-        T.Normalize(
-            mean=[0.485, 0.456, 0.406],  # ImageNet statistics
+    transform = A.Compose([
+        # Resize to target size
+        A.Resize(height=image_size, width=image_size),
+
+        # Normalize with ImageNet statistics
+        A.Normalize(
+            mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225]
-        )
-    ])
+        ),
+
+        # Convert to PyTorch tensor
+        ToTensorV2(),
+
+    ], keypoint_params=A.KeypointParams(
+        format='xy',
+        remove_invisible=False,
+        label_fields=[]
+    ))
+
+    return transform
 
 
-# TODO: Add perspective transform augmentation (careful with corners going outside [0,1])
-# Perspective transforms would simulate viewing the paper from different angles,
-# which is very relevant for paper detection. However, care must be taken to:
-# 1. Ensure corners don't go too far outside [0, 1] range
-# 2. Keep the transform realistic (papers are typically viewed from moderate angles)
-# 3. Consider clipping or rejecting transforms that create invalid corner positions
+def get_inference_transform(image_size=224):
+    """
+    Get transform for inference (alias for get_validation_augmentation).
+
+    Args:
+        image_size (int): Target image size. Default: 224
+
+    Returns:
+        albumentations.Compose: Augmentation pipeline
+    """
+    return get_validation_augmentation(image_size)
+
+
+def normalize_corners(corners, image_width, image_height):
+    """
+    Normalize corner coordinates to [0, 1] range.
+
+    Args:
+        corners (np.ndarray): Corner coordinates of shape (4, 2) in pixels
+        image_width (int): Image width in pixels
+        image_height (int): Image height in pixels
+
+    Returns:
+        np.ndarray: Normalized corners of shape (4, 2) with values in [0, 1]
+    """
+    normalized = corners.copy().astype(np.float32)
+    normalized[:, 0] /= image_width  # Normalize x
+    normalized[:, 1] /= image_height  # Normalize y
+    return normalized
+
+
+def denormalize_corners(corners_normalized, image_width, image_height):
+    """
+    Denormalize corner coordinates from [0, 1] range to pixel coordinates.
+
+    Args:
+        corners_normalized (np.ndarray): Normalized corners of shape (4, 2) in [0, 1]
+        image_width (int): Target image width in pixels
+        image_height (int): Target image height in pixels
+
+    Returns:
+        np.ndarray: Corner coordinates of shape (4, 2) in pixels
+    """
+    denormalized = corners_normalized.copy().astype(np.float32)
+    denormalized[:, 0] *= image_width  # Denormalize x
+    denormalized[:, 1] *= image_height  # Denormalize y
+    return denormalized

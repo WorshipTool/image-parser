@@ -20,16 +20,16 @@ class TrainingConfig:
     """
 
     # Input image dimensions (height and width will be resized to this)
-    image_size: int = 224
+    image_size: int = 256  # Increased from 224 for better feature extraction
 
-    # Number of samples per training batch
-    batch_size: int = 8
+    # Number of samples per training batch (small for small dataset)
+    batch_size: int = 4  # Reduced to allow better generalization with small dataset
 
     # Total number of training epochs
     num_epochs: int = 200
 
-    # Initial learning rate for optimizer
-    learning_rate: float = 1e-3
+    # Initial learning rate for optimizer (lower for pretrained ResNet18)
+    learning_rate: float = 5e-4  # Reduced from 1e-3 for fine-tuning pretrained model
 
     # L2 regularization coefficient to prevent overfitting
     weight_decay: float = 0.01
@@ -41,16 +41,19 @@ class TrainingConfig:
     seed: int = 42
 
     # Number of epochs without improvement before stopping training
-    early_stopping_patience: int = 30
+    early_stopping_patience: int = 40  # Increased patience for small dataset
 
     # Number of epochs without improvement before reducing learning rate
-    lr_scheduler_patience: int = 10
+    lr_scheduler_patience: int = 15  # Increased patience
 
     # Factor by which learning rate is reduced (new_lr = lr * factor)
     lr_scheduler_factor: float = 0.5
 
     # Dropout probability for regularization in fully connected layers
     dropout: float = 0.5
+
+    # Augmentation strength for training ('light', 'medium', 'strong')
+    augmentation_strength: str = 'strong'  # Aggressive augmentation for small dataset
 
     # Directory where trained models will be saved
     save_dir: str = "paper_detection/models"

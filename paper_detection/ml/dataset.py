@@ -216,9 +216,17 @@ class PaperCornersDataset(Dataset):
         image_tensor = augmented['image']  # Already a torch.Tensor [3, H, W]
         aug_keypoints = augmented['keypoints']  # List of (x, y) tuples
 
-        # Convert keypoints back to numpy array and normalize to [0,1]
-        corners_aug = np.array(aug_keypoints, dtype=np.float32)  # Shape: (4, 2)
-        corners_norm = corners_aug / self.config.image_size  # Normalize to [0, 1]
+        # Validate that we still have all 4 keypoints after augmentation
+        # If augmentation removed some keypoints (e.g., they went out of bounds),
+        # use the normalized original corners instead to ensure we always have 4 corners
+        if len(aug_keypoints) != 4:
+            # Fall back to original corners normalized to resized image
+            corners_aug = corners_normalized.copy() * self.config.image_size
+            corners_norm = corners_normalized.copy()
+        else:
+            # Convert keypoints back to numpy array and normalize to [0,1]
+            corners_aug = np.array(aug_keypoints, dtype=np.float32)  # Shape: (4, 2)
+            corners_norm = corners_aug / self.config.image_size  # Normalize to [0, 1]
 
         # Flatten corners from (4, 2) to (8,)
         corners_flat = torch.FloatTensor(corners_norm.flatten())

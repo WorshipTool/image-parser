@@ -50,11 +50,11 @@ def get_training_augmentation(image_size=224, augmentation_strength='strong'):
         contrast_limit = 0.15
         p_geometric = 0.5
     else:  # strong (default for small datasets)
-        rotate_limit = 25
-        perspective_scale = 0.2
-        brightness_limit = 0.2
-        contrast_limit = 0.2
-        p_geometric = 0.7
+        rotate_limit = 35  # Increased rotation
+        perspective_scale = 0.25  # Stronger perspective
+        brightness_limit = 0.25  # More brightness variation
+        contrast_limit = 0.25  # More contrast variation
+        p_geometric = 0.8  # Higher probability of geometric transforms
 
     transform = A.Compose([
         # Resize to target size (always applied)
@@ -86,6 +86,14 @@ def get_training_augmentation(image_size=224, augmentation_strength='strong'):
             border_mode=cv2.BORDER_CONSTANT,
             fill=0,
             p=p_geometric
+        ),
+
+        # Grid distortion for more variation (only for strong augmentation)
+        A.GridDistortion(
+            num_steps=5,
+            distort_limit=0.3,
+            border_mode=cv2.BORDER_CONSTANT,
+            p=0.3 if augmentation_strength == 'strong' else 0.0
         ),
 
         # Photometric transformations (don't affect keypoints)

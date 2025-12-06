@@ -34,8 +34,6 @@ import torch
 import numpy as np
 import cv2
 import os
-import sys
-from PIL import Image
 from typing import Optional, Tuple
 
 from .config import InferenceConfig
@@ -221,7 +219,8 @@ class MLPaperDetector:
             )
 
             # Apply transform (converts to PIL, normalizes, converts to tensor)
-            image_tensor = self.transform(image_resized)
+            transformed = self.transform(image=image_resized)
+            image_tensor = transformed['image']
 
             # Add batch dimension [3, H, W] -> [1, 3, H, W]
             image_tensor = image_tensor.unsqueeze(0)

@@ -20,19 +20,19 @@ class TrainingConfig:
     """
 
     # Input image dimensions (height and width will be resized to this)
-    image_size: int = 256  # Increased from 224 for better feature extraction
+    image_size: int = 256  # Consistent with inference
 
     # Number of samples per training batch (small for small dataset)
-    batch_size: int = 4  # Reduced to allow better generalization with small dataset
+    batch_size: int = 4  # Small batch size for better generalization
 
     # Total number of training epochs
-    num_epochs: int = 200
+    num_epochs: int = 300  # More epochs with early stopping
 
-    # Initial learning rate for optimizer (lower for pretrained ResNet18)
-    learning_rate: float = 5e-4  # Reduced from 1e-3 for fine-tuning pretrained model
+    # Initial learning rate for optimizer (low for small dataset + pretrained model)
+    learning_rate: float = 1e-4  # Lower LR for better convergence on small dataset
 
     # L2 regularization coefficient to prevent overfitting
-    weight_decay: float = 0.01
+    weight_decay: float = 0.02  # Stronger regularization for small dataset
 
     # Fraction of dataset used for training (remainder used for validation)
     train_split: float = 0.8
@@ -41,16 +41,16 @@ class TrainingConfig:
     seed: int = 42
 
     # Number of epochs without improvement before stopping training
-    early_stopping_patience: int = 40  # Increased patience for small dataset
+    early_stopping_patience: int = 60  # More patience for slower learning with lower LR
 
     # Number of epochs without improvement before reducing learning rate
-    lr_scheduler_patience: int = 15  # Increased patience
+    lr_scheduler_patience: int = 20  # More patience
 
     # Factor by which learning rate is reduced (new_lr = lr * factor)
     lr_scheduler_factor: float = 0.5
 
     # Dropout probability for regularization in fully connected layers
-    dropout: float = 0.5
+    dropout: float = 0.6  # Higher dropout for small dataset
 
     # Augmentation strength for training ('light', 'medium', 'strong')
     augmentation_strength: str = 'strong'  # Aggressive augmentation for small dataset
@@ -72,10 +72,10 @@ class InferenceConfig:
     """
 
     # Input image dimensions (must match training configuration)
-    image_size: int = 224
+    image_size: int = 256  # Must match TrainingConfig.image_size
 
     # Path to the trained model checkpoint file
-    model_path: str = "paper_detection/models/paper_detector_cnn.pth"
+    model_path: str = "paper_detection/models/paper_detector_cnn_finetuned.pth"
 
     # Device for inference (automatically selects GPU if available)
     device: str = "cuda" if torch.cuda.is_available() else "cpu"

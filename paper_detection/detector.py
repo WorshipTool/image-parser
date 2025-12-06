@@ -35,7 +35,7 @@ class PaperDetector:
         use_fallback_canny: bool = True,
         use_edge_extrapolation: bool = True,
         use_adaptive_params: bool = False,
-        detection_mode: Literal["opencv", "ml", "ml_with_fallback"] = "opencv",
+        detection_mode: Literal["opencv", "ml", "ml_with_fallback"] = "ml",
         ml_model_path: Optional[str] = None
     ):
         """
@@ -50,8 +50,8 @@ class PaperDetector:
             use_edge_extrapolation: Use Hough line detection to extrapolate corners outside image
             use_adaptive_params: Use adaptive parameters derived from image statistics (recommended)
             detection_mode: Detection method to use:
-                - "opencv": Traditional OpenCV-based detection (default)
-                - "ml": Machine learning-based detection only
+                - "opencv": Traditional OpenCV-based detection
+                - "ml": Machine learning-based detection only (default)
                 - "ml_with_fallback": Try ML first, fallback to OpenCV if it fails
             ml_model_path: Optional path to ML model file (uses default if not specified)
         """

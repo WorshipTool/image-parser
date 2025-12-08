@@ -99,7 +99,7 @@ def train(config: TrainingConfig = None):
 
     # Create dataloaders
     print("\nCreating dataloaders...")
-    train_loader, val_loader = create_dataloaders(config, train_split=config.train_split)
+    train_loader, val_loader = create_dataloaders(train_split=config.train_split)
     print(f"Train samples: {len(train_loader.dataset)}")
     print(f"Val samples: {len(val_loader.dataset)}")
 

@@ -11,30 +11,26 @@ from torch.utils.data import Dataset
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
+from .config import TrainingConfig
+
 
 class CornerDetectionDataset(Dataset):
     """Dataset for corner detection with augmentation"""
 
-    def __init__(
-        self,
-        images_dir: Path,
-        corners_file: Path,
-        image_size: int = 224,
-        augment: bool = True
-    ):
+    def __init__(self, augment: bool = True):
         """
         Args:
-            images_dir: Directory containing images
-            corners_file: JSON file with corner coordinates
-            image_size: Size to resize images to
             augment: Whether to apply augmentation
         """
-        self.images_dir = Path(images_dir)
-        self.image_size = image_size
+        # Load config
+        config = TrainingConfig()
+
+        self.images_dir = Path(config.images_dir)
+        self.image_size = config.image_size
         self.augment = augment
 
         # Load ground truth
-        with open(corners_file, 'r') as f:
+        with open(config.corners_file, 'r') as f:
             self.ground_truth = json.load(f)
 
         self.image_names = list(self.ground_truth.keys())
@@ -119,34 +115,28 @@ class CornerDetectionDataset(Dataset):
         }
 
 
-def create_dataloaders(config, train_split=0.8):
+def create_dataloaders():
     """Create train and validation dataloaders"""
+
+    # Load config
+    config = TrainingConfig()
 
     # Load all data
     full_dataset = CornerDetectionDataset(
-        images_dir=config.images_dir,
-        corners_file=config.corners_file,
-        image_size=config.image_size,
         augment=False  # Will set per split
     )
 
     # Split into train/val
     dataset_size = len(full_dataset)
-    train_size = int(train_split * dataset_size)
+    train_size = int(config.train_split * dataset_size)
     val_size = dataset_size - train_size
 
     # Create separate datasets for train and val
     train_dataset = CornerDetectionDataset(
-        images_dir=config.images_dir,
-        corners_file=config.corners_file,
-        image_size=config.image_size,
         augment=True  # Augmentation for training
     )
 
     val_dataset = CornerDetectionDataset(
-        images_dir=config.images_dir,
-        corners_file=config.corners_file,
-        image_size=config.image_size,
         augment=False  # No augmentation for validation
     )
 

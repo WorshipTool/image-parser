@@ -16,12 +16,12 @@ class TestCornerAccuracy:
     @pytest.fixture
     def test_images_dir(self):
         """Path to test images directory"""
-        return Path(__file__).parent / "test_images"
+        return Path(__file__).parent.parent / "data" / "images"
 
     @pytest.fixture
     def ground_truth(self):
         """Load ground truth corner data"""
-        json_path = Path(__file__).parent / "test_corners_ground_truth.json"
+        json_path = Path(__file__).parent.parent / "data" / "corners_ground_truth.json"
         with open(json_path, 'r') as f:
             return json.load(f)
 
@@ -238,7 +238,6 @@ class TestCornerAccuracy:
 
         # Load ground truth
         gt_data = ground_truth[image_name]
-        tolerance = gt_data["tolerance_pixels"]
 
         # Load image
         image_path = test_images_dir / image_name
@@ -249,6 +248,9 @@ class TestCornerAccuracy:
 
         # Convert relative corners (0-1) to absolute pixels
         h, w = image.shape[:2]
+
+        # Calculate tolerance dynamically: 1% of shorter image dimension
+        tolerance = min(h, w) * 0.01
         gt_corners_relative = np.array(gt_data["corners"], dtype=np.float32)
         gt_corners = gt_corners_relative.copy()
         gt_corners[:, 0] *= w  # x coordinates

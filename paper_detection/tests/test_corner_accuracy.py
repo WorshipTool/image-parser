@@ -10,6 +10,14 @@ from pathlib import Path
 from paper_detection import PaperDetector
 
 
+def get_test_images():
+    """Load image names from corners.json"""
+    corners_file = Path(__file__).parent.parent / "data" / "corners.json"
+    with open(corners_file, 'r') as f:
+        data = json.load(f)
+    return list(data.keys())
+
+
 class TestCornerAccuracy:
     """Test corner detection accuracy against ground truth"""
 
@@ -21,7 +29,7 @@ class TestCornerAccuracy:
     @pytest.fixture
     def ground_truth(self):
         """Load ground truth corner data"""
-        json_path = Path(__file__).parent.parent / "data" / "corners_ground_truth.json"
+        json_path = Path(__file__).parent.parent / "data" / "corners.json"
         with open(json_path, 'r') as f:
             return json.load(f)
 
@@ -190,39 +198,7 @@ class TestCornerAccuracy:
 
         cv2.imwrite(str(output_path), result)
 
-    @pytest.mark.parametrize("image_name", [
-        "IMG_20230826_092420.jpg",
-        "IMG_20230826_092429.jpg",
-        "IMG_20230826_092437.jpg",
-        "IMG_20230826_092442.jpg",
-        "IMG_20230826_092451.jpg",
-        "IMG_20230826_092457.jpg",
-        "IMG_20230826_092505.jpg",
-        "IMG_20230826_092512.jpg",
-        "IMG_20230826_092519.jpg",
-        "IMG_20230826_092523.jpg",
-        "IMG_20230826_092528.jpg",
-        "IMG_20230826_092535.jpg",
-        "IMG_20230826_092543.jpg",
-        "IMG_20230826_092552.jpg",
-        "IMG_20230826_092557.jpg",
-        "IMG_20230826_092602.jpg",
-        "IMG_20230826_092605.jpg",
-        "IMG_20230826_092616.jpg",
-        "IMG_20230826_092622.jpg",
-        "IMG_20230826_092637.jpg",
-        "IMG_20230826_092855.jpg",
-        "IMG_20230826_092914.jpg",
-        "IMG_20230826_092927.jpg",
-        "IMG_20230826_093135.jpg",
-        "IMG_20230826_093159.jpg",
-        "IMG_20230826_093705.jpg",
-        "IMG_20230826_095708.jpg",
-        "IMG_20230826_100320.jpg",
-        "test_image_1.jpeg",
-        "test_image_2.jpg",
-        "test_image_3.jpeg",
-    ])
+    @pytest.mark.parametrize("image_name", get_test_images())
     def test_corner_detection_accuracy(
         self,
         test_images_dir,

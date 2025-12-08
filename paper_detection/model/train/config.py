@@ -11,9 +11,8 @@ class TrainingConfig:
     """Configuration for model training"""
 
     # Data paths
-    data_dir: Path = Path("paper_detection/data")
     images_dir: Path = Path("paper_detection/data/images")
-    ground_truth_file: Path = Path("paper_detection/data/corners_ground_truth.json")
+    corners_file: Path = Path("paper_detection/data/corners.json")
 
     # Output paths
     output_dir: Path = Path("paper_detection/model/checkpoints")

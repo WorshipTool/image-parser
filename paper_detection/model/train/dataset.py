@@ -18,14 +18,14 @@ class CornerDetectionDataset(Dataset):
     def __init__(
         self,
         images_dir: Path,
-        ground_truth_file: Path,
+        corners_file: Path,
         image_size: int = 224,
         augment: bool = True
     ):
         """
         Args:
             images_dir: Directory containing images
-            ground_truth_file: JSON file with ground truth corners
+            corners_file: JSON file with corner coordinates
             image_size: Size to resize images to
             augment: Whether to apply augmentation
         """
@@ -34,7 +34,7 @@ class CornerDetectionDataset(Dataset):
         self.augment = augment
 
         # Load ground truth
-        with open(ground_truth_file, 'r') as f:
+        with open(corners_file, 'r') as f:
             self.ground_truth = json.load(f)
 
         self.image_names = list(self.ground_truth.keys())
@@ -125,7 +125,7 @@ def create_dataloaders(config, train_split=0.8):
     # Load all data
     full_dataset = CornerDetectionDataset(
         images_dir=config.images_dir,
-        ground_truth_file=config.ground_truth_file,
+        corners_file=config.corners_file,
         image_size=config.image_size,
         augment=False  # Will set per split
     )
@@ -138,14 +138,14 @@ def create_dataloaders(config, train_split=0.8):
     # Create separate datasets for train and val
     train_dataset = CornerDetectionDataset(
         images_dir=config.images_dir,
-        ground_truth_file=config.ground_truth_file,
+        corners_file=config.corners_file,
         image_size=config.image_size,
         augment=True  # Augmentation for training
     )
 
     val_dataset = CornerDetectionDataset(
         images_dir=config.images_dir,
-        ground_truth_file=config.ground_truth_file,
+        corners_file=config.corners_file,
         image_size=config.image_size,
         augment=False  # No augmentation for validation
     )

@@ -24,8 +24,9 @@ from paper_detection import PaperDetector
 
 # Paths (relative to this file in paper_detection/tests/)
 TESTS_DIR = Path(__file__).parent
-TEST_IMAGES_DIR = TESTS_DIR / "test_images"
-GROUND_TRUTH_JSON = TESTS_DIR / "test_corners_ground_truth.json"
+DATA_DIR = TESTS_DIR.parent / "data"
+TEST_IMAGES_DIR = DATA_DIR / "images"
+GROUND_TRUTH_JSON = DATA_DIR / "corners.json"
 
 # UI constants
 CORNER_RADIUS = 15

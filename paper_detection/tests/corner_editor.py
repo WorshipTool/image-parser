@@ -3,11 +3,14 @@
 Visual corner editor for ground truth data
 Controls:
 - Click and drag corners to adjust position
+- '0-3' - Select corner by number
+- Arrow keys - Move selected corner (1px, Shift=10px)
 - 'n' - Next image
 - 'p' - Previous image
 - 's' - Save current corners
 - 'r' - Reset to original corners
 - 'a' - Auto-detect corners
+- 'm' - Mark/unmark image for review
 - 'q' or ESC - Quit
 """
 
@@ -33,6 +36,7 @@ CORNER_RADIUS = 15
 CORNER_COLOR_IDLE = (0, 255, 0)  # Green
 CORNER_COLOR_HOVER = (0, 255, 255)  # Yellow
 CORNER_COLOR_DRAG = (0, 0, 255)  # Red
+CORNER_COLOR_SELECTED = (255, 0, 255)  # Magenta
 LINE_THICKNESS = 3
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 FONT_SCALE = 0.7
@@ -43,6 +47,10 @@ ZOOM_SIZE = 200  # Size of zoom window
 ZOOM_FACTOR = 4  # Magnification factor
 ZOOM_REGION = 50  # Size of region to capture around corner
 
+# Display window constants
+MAX_DISPLAY_WIDTH = 1400  # Maximum width of display window
+MAX_DISPLAY_HEIGHT = 1000  # Maximum height of display window
+
 class CornerEditor:
     def __init__(self):
         self.load_ground_truth()
@@ -50,9 +58,13 @@ class CornerEditor:
         self.current_index = 0
         self.dragging_corner = None
         self.hover_corner = None
+        self.selected_corner = None  # For keyboard navigation
         self.corners_modified = False
         self.original_corners = None
         self.detector = PaperDetector()
+        self.marked_images = set()  # Set of marked image names
+        self.display_scale = 1.0  # Scale factor for display
+        self.display_offset = (0, 0)  # Offset for centering image
 
         # Window name
         self.window_name = "Corner Editor"
@@ -97,6 +109,19 @@ class CornerEditor:
 
         self.height, self.width = self.image.shape[:2]
 
+        # Calculate display scale to fit in window
+        scale_w = MAX_DISPLAY_WIDTH / self.width
+        scale_h = MAX_DISPLAY_HEIGHT / self.height
+        self.display_scale = min(scale_w, scale_h, 1.0)  # Don't scale up, only down
+
+        # Calculate display size and centering offset
+        self.display_width = int(self.width * self.display_scale)
+        self.display_height = int(self.height * self.display_scale)
+        self.display_offset = (
+            (MAX_DISPLAY_WIDTH - self.display_width) // 2,
+            (MAX_DISPLAY_HEIGHT - self.display_height) // 2
+        )
+
         # Load corners from ground truth
         gt_data = self.ground_truth[self.current_image_name]
         relative_corners = np.array(gt_data["corners"], dtype=np.float32)
@@ -114,24 +139,29 @@ class CornerEditor:
 
     def mouse_callback(self, event, x, y, flags, param):
         """Handle mouse events"""
+        # Convert display coordinates to image coordinates
+        x_img = (x - self.display_offset[0]) / self.display_scale
+        y_img = (y - self.display_offset[1]) / self.display_scale
+        
         if event == cv2.EVENT_LBUTTONDOWN:
             # Check if clicking on a corner
             for i, corner in enumerate(self.corners):
-                dist = np.linalg.norm([x - corner[0], y - corner[1]])
+                dist = np.linalg.norm([x_img - corner[0], y_img - corner[1]])
                 if dist < CORNER_RADIUS * 2:
                     self.dragging_corner = i
+                    self.selected_corner = i  # Also select it for keyboard control
                     break
 
         elif event == cv2.EVENT_MOUSEMOVE:
             if self.dragging_corner is not None:
                 # Drag corner
-                self.corners[self.dragging_corner] = [x, y]
+                self.corners[self.dragging_corner] = [x_img, y_img]
                 self.corners_modified = True
             else:
                 # Check hover
                 self.hover_corner = None
                 for i, corner in enumerate(self.corners):
-                    dist = np.linalg.norm([x - corner[0], y - corner[1]])
+                    dist = np.linalg.norm([x_img - corner[0], y_img - corner[1]])
                     if dist < CORNER_RADIUS * 2:
                         self.hover_corner = i
                         break
@@ -139,11 +169,13 @@ class CornerEditor:
         elif event == cv2.EVENT_LBUTTONUP:
             self.dragging_corner = None
 
-    def draw_zoom_window(self, display, corner_pos, corner_index):
+    def draw_zoom_window(self, display, corner_pos_display, corner_index):
         """Draw a magnified view of the area around the corner"""
-        cx, cy = int(corner_pos[0]), int(corner_pos[1])
+        # Convert display position back to image coordinates for sampling
+        corner_img = self.corners[corner_index]
+        cx, cy = int(corner_img[0]), int(corner_img[1])
 
-        # Calculate region to capture
+        # Calculate region to capture from original image
         x1 = max(0, cx - ZOOM_REGION)
         y1 = max(0, cy - ZOOM_REGION)
         x2 = min(self.width, cx + ZOOM_REGION)
@@ -176,47 +208,58 @@ class CornerEditor:
         cv2.putText(zoomed, label, (10, 25), FONT, 0.6, (0, 0, 0), 3)
         cv2.putText(zoomed, label, (10, 25), FONT, 0.6, (255, 255, 255), 2)
 
-        # Position zoom window near the corner
+        # Position zoom window near the corner (using display coordinates)
         # Offset to the right and down to avoid obscuring the corner
+        cx_display, cy_display = int(corner_pos_display[0]), int(corner_pos_display[1])
         offset_x = 40
         offset_y = 40
 
-        zoom_x = cx + offset_x
-        zoom_y = cy + offset_y
+        zoom_x = cx_display + offset_x
+        zoom_y = cy_display + offset_y
 
         # If too close to right edge, show on left side
-        if zoom_x + ZOOM_SIZE > self.width - 10:
-            zoom_x = cx - ZOOM_SIZE - offset_x
+        if zoom_x + ZOOM_SIZE > self.display_width - 10:
+            zoom_x = cx_display - ZOOM_SIZE - offset_x
 
         # If too close to bottom edge, show on top
-        if zoom_y + ZOOM_SIZE > self.height - 10:
-            zoom_y = cy - ZOOM_SIZE - offset_y
+        if zoom_y + ZOOM_SIZE > self.display_height - 10:
+            zoom_y = cy_display - ZOOM_SIZE - offset_y
 
         # Make sure it's not off screen
-        zoom_x = max(10, min(zoom_x, self.width - ZOOM_SIZE - 10))
-        zoom_y = max(10, min(zoom_y, self.height - ZOOM_SIZE - 10))
+        zoom_x = max(10, min(zoom_x, self.display_width - ZOOM_SIZE - 10))
+        zoom_y = max(10, min(zoom_y, self.display_height - ZOOM_SIZE - 10))
 
         # Overlay on display
         display[zoom_y:zoom_y + ZOOM_SIZE, zoom_x:zoom_x + ZOOM_SIZE] = zoomed
 
     def draw_ui(self):
         """Draw the UI"""
-        display = self.image.copy()
+        # Resize image for display
+        if self.display_scale != 1.0:
+            display = cv2.resize(self.image, (self.display_width, self.display_height))
+        else:
+            display = self.image.copy()
+        
+        # Scale corners for display
+        display_corners = self.corners * self.display_scale
 
         # Draw lines between corners
         for i in range(4):
-            p1 = tuple(self.corners[i].astype(int))
-            p2 = tuple(self.corners[(i + 1) % 4].astype(int))
+            p1 = tuple(display_corners[i].astype(int))
+            p2 = tuple(display_corners[(i + 1) % 4].astype(int))
             cv2.line(display, p1, p2, CORNER_COLOR_IDLE, LINE_THICKNESS)
 
         # Draw corners
-        for i, corner in enumerate(self.corners):
+        for i, corner in enumerate(display_corners):
             pos = tuple(corner.astype(int))
 
             # Choose color based on state
             if self.dragging_corner == i:
                 color = CORNER_COLOR_DRAG
                 radius = CORNER_RADIUS + 5
+            elif self.selected_corner == i:
+                color = CORNER_COLOR_SELECTED
+                radius = CORNER_RADIUS + 4
             elif self.hover_corner == i:
                 color = CORNER_COLOR_HOVER
                 radius = CORNER_RADIUS + 3
@@ -234,17 +277,19 @@ class CornerEditor:
 
         # Draw info text
         info_y = 30
+        is_marked = self.current_image_name in self.marked_images
         info_texts = [
             f"Image: {self.current_index + 1}/{len(self.image_names)} - {self.current_image_name}",
-            f"Modified: {'YES' if self.corners_modified else 'NO'}",
+            f"Modified: {'YES' if self.corners_modified else 'NO'} | Marked: {'YES ★' if is_marked else 'NO'}",
+            f"Selected corner: {self.selected_corner if self.selected_corner is not None else 'None'}",
             "",
             "Controls:",
             "  Click & Drag - Move corner",
-            "  N - Next image",
-            "  P - Previous image",
-            "  S - Save corners",
-            "  R - Reset to original",
-            "  A - Auto-detect",
+            "  0-3 - Select corner",
+            "  Arrow keys - Move corner (Shift=10px)",
+            "  M - Mark/unmark image",
+            "  N - Next | P - Previous",
+            "  S - Save | R - Reset | A - Auto",
             "  Q/ESC - Quit",
         ]
 
@@ -258,9 +303,16 @@ class CornerEditor:
 
         # Draw zoom window if dragging a corner
         if self.dragging_corner is not None:
-            self.draw_zoom_window(display, self.corners[self.dragging_corner], self.dragging_corner)
+            # Pass original corner position for zoom (not scaled)
+            self.draw_zoom_window(display, display_corners[self.dragging_corner], self.dragging_corner)
+        
+        # Create canvas with consistent size
+        canvas = np.zeros((MAX_DISPLAY_HEIGHT, MAX_DISPLAY_WIDTH, 3), dtype=np.uint8)
+        # Center the display on canvas
+        canvas[self.display_offset[1]:self.display_offset[1] + self.display_height,
+               self.display_offset[0]:self.display_offset[0] + self.display_width] = display
 
-        return display
+        return canvas
 
     def save_current_corners(self):
         """Save current corners to ground truth"""
@@ -301,6 +353,22 @@ class CornerEditor:
         else:
             print(f"✗ Detection failed: {self.current_image_name}")
 
+    def move_selected_corner(self, dx, dy):
+        """Move the selected corner by dx, dy pixels"""
+        if self.selected_corner is not None:
+            self.corners[self.selected_corner][0] += dx
+            self.corners[self.selected_corner][1] += dy
+            self.corners_modified = True
+
+    def toggle_mark(self):
+        """Toggle mark on current image"""
+        if self.current_image_name in self.marked_images:
+            self.marked_images.remove(self.current_image_name)
+            print(f"☐ Unmarked: {self.current_image_name}")
+        else:
+            self.marked_images.add(self.current_image_name)
+            print(f"★ Marked: {self.current_image_name}")
+
     def next_image(self):
         """Go to next image"""
         if self.corners_modified:
@@ -329,6 +397,9 @@ class CornerEditor:
         print("="*60)
         print("\nControls:")
         print("  Click & Drag - Move corner")
+        print("  0-3 - Select corner by number")
+        print("  Arrow keys - Move selected corner (1px, Shift=10px)")
+        print("  M - Mark/unmark image for review")
         print("  N - Next image")
         print("  P - Previous image")
         print("  S - Save corners")
@@ -360,11 +431,41 @@ class CornerEditor:
                 self.reset_corners()
             elif key == ord('a'):  # Auto-detect
                 self.auto_detect_corners()
+            elif key == ord('m'):  # Mark/unmark
+                self.toggle_mark()
+            # Select corner by number (0-3)
+            elif key in [ord('0'), ord('1'), ord('2'), ord('3')]:
+                self.selected_corner = int(chr(key))
+                print(f"Selected corner: {self.selected_corner}")
+            # Arrow keys for moving selected corner
+            elif key == 81 or key == 2:  # Left arrow
+                shift_pressed = cv2.waitKey(1) & 0xFF == 225  # Check for shift
+                self.move_selected_corner(-10 if shift_pressed else -1, 0)
+            elif key == 83 or key == 3:  # Right arrow
+                shift_pressed = cv2.waitKey(1) & 0xFF == 225
+                self.move_selected_corner(10 if shift_pressed else 1, 0)
+            elif key == 82 or key == 0:  # Up arrow
+                shift_pressed = cv2.waitKey(1) & 0xFF == 225
+                self.move_selected_corner(0, -10 if shift_pressed else -1)
+            elif key == 84 or key == 1:  # Down arrow
+                shift_pressed = cv2.waitKey(1) & 0xFF == 225
+                self.move_selected_corner(0, 10 if shift_pressed else 1)
 
         cv2.destroyAllWindows()
         print("\n" + "="*60)
         print("Editor closed")
         print("="*60)
+        
+        # Print marked images
+        if self.marked_images:
+            print("\n" + "="*60)
+            print(f"Marked images ({len(self.marked_images)}):")
+            print("="*60)
+            for img_name in sorted(self.marked_images):
+                print(f"  ★ {img_name}")
+            print("="*60)
+        else:
+            print("\nNo images were marked.")
 
 if __name__ == "__main__":
     editor = CornerEditor()

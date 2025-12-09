@@ -20,8 +20,8 @@ class TrainingConfig:
     output_dir: Path = Path("paper_detection/model/checkpoints")
 
     # Training parameters
-    batch_size: int = 2
-    num_epochs: int = 200
+    batch_size: int = 4
+    num_epochs: int = 100
     learning_rate: float = 0.001
 
     # Model parameters (from shared config)

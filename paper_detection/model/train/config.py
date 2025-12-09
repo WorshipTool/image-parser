@@ -5,6 +5,8 @@ Training configuration
 from dataclasses import dataclass
 from pathlib import Path
 
+from paper_detection.model.config import IMAGE_SIZE, NUM_CORNERS
+
 
 @dataclass
 class TrainingConfig:
@@ -18,13 +20,13 @@ class TrainingConfig:
     output_dir: Path = Path("paper_detection/model/checkpoints")
 
     # Training parameters
-    batch_size: int = 4
-    num_epochs: int = 100
+    batch_size: int = 2
+    num_epochs: int = 200
     learning_rate: float = 0.001
 
-    # Model parameters
-    image_size: int = 224  # Input image size for model
-    num_corners: int = 4   # 4 corners to detect
+    # Model parameters (from shared config)
+    image_size: int = IMAGE_SIZE
+    num_corners: int = NUM_CORNERS
 
     # Data split
     train_split: float = 0.8

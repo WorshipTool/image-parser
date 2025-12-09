@@ -11,7 +11,8 @@ from torch.utils.data import Dataset
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
-from .config import TrainingConfig
+from paper_detection.model.train.config import TrainingConfig
+from paper_detection.model.utils import IMAGE_MEAN, IMAGE_STD
 
 
 def order_corners_clockwise(corners: np.ndarray) -> np.ndarray:
@@ -82,7 +83,7 @@ class CornerDetectionDataset(Dataset):
         # Basic transform (always applied)
         basic_transform = [
             A.Resize(self.image_size, self.image_size),
-            A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            A.Normalize(mean=IMAGE_MEAN, std=IMAGE_STD),
             ToTensorV2(),
         ]
 

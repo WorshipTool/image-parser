@@ -9,8 +9,8 @@ from pathlib import Path
 from tqdm import tqdm
 
 from .config import TrainingConfig
-from .model import create_model
-from .dataset import create_dataloaders
+from paper_detection.model.model import create_model
+from paper_detection.model.train.dataset import create_dataloaders
 
 
 def train_epoch(model, train_loader, criterion, optimizer, device):

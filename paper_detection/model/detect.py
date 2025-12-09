@@ -10,7 +10,7 @@ from typing import Union, Tuple
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
-from paper_detection.model.train.model import CornerDetectionCNN
+from paper_detection.model.model import CornerDetectionCNN
 from paper_detection.model.train.config import TrainingConfig
 from paper_detection.model.utils import preprocess_image, IMAGE_MEAN, IMAGE_STD
 from paper_detection.model.config import IMAGE_SIZE
@@ -44,7 +44,7 @@ class CornerDetector:
             raise FileNotFoundError(f"Model checkpoint not found: {model_path}")
         
         # Load model
-        self.model = CornerDetectionCNN(num_corners=4)
+        self.model = CornerDetectionCNN()
         checkpoint = torch.load(model_path, map_location=self.device)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.model.to(self.device)

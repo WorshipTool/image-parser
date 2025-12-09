@@ -5,14 +5,16 @@ Simple CNN model for paper corner detection
 import torch
 import torch.nn as nn
 
+from paper_detection.model.config import NUM_CORNERS
+
 
 class CornerDetectionCNN(nn.Module):
     """Simple CNN for detecting 4 paper corners"""
 
-    def __init__(self, num_corners=4):
+    def __init__(self):
         super().__init__()
 
-        self.num_corners = num_corners
+        self.num_corners = NUM_CORNERS
 
         # Feature extraction layers
         self.features = nn.Sequential(
@@ -51,7 +53,7 @@ class CornerDetectionCNN(nn.Module):
             nn.Linear(512, 128),
             nn.ReLU(inplace=True),
             nn.Dropout(0.3),
-            nn.Linear(128, num_corners * 2),  # 4 corners, 2 coords each
+            nn.Linear(128, self.num_corners * 2),  # 4 corners, 2 coords each
         )
 
     def forward(self, x):
@@ -67,8 +69,8 @@ class CornerDetectionCNN(nn.Module):
         return corners
 
 
-def create_model(num_corners=4, device="cpu"):
+def create_model(device="cpu"):
     """Create and initialize model"""
-    model = CornerDetectionCNN(num_corners=num_corners)
+    model = CornerDetectionCNN()
     model = model.to(device)
     return model

@@ -105,7 +105,7 @@ def train(config: TrainingConfig = None):
 
     # Create model
     print("\nCreating model...")
-    model = create_model(num_corners=config.num_corners, device=config.device)
+    model = create_model(device=config.device)
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 
     # Loss and optimizer

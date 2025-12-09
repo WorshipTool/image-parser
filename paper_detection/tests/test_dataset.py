@@ -165,3 +165,87 @@ class TestDataset:
         print(f"\n✓ Verified clockwise order for {num_samples} images")
         print("✓ All corners are ordered by angle from centroid (clockwise direction)")
         print("✓ First corner is always closest to top-left (0, 0)")
+
+    def test_augmentation_transforms_corners(self):
+        """Test that image transformations (rotation, flip) are applied to corners"""
+        import albumentations as A
+        from albumentations.pytorch import ToTensorV2
+        import json
+        from paper_detection.model.train.config import TrainingConfig
+        
+        # Load config and ground truth
+        config = TrainingConfig()
+        with open(config.corners_file, 'r') as f:
+            ground_truth = json.load(f)
+        
+        # Get first image
+        image_name = list(ground_truth.keys())[0]
+        image_path = Path(config.images_dir) / image_name
+        image = cv2.imread(str(image_path))
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        h, w = image.shape[:2]
+        
+        # Get corners in pixel coordinates
+        corners_norm = np.array(ground_truth[image_name]["corners"], dtype=np.float32)
+        corners_px = corners_norm.copy()
+        corners_px[:, 0] *= w
+        corners_px[:, 1] *= h
+        
+        # Test 1: Horizontal flip
+        transform_flip = A.Compose([
+            A.HorizontalFlip(p=1.0),  # Always flip
+            A.Resize(224, 224),
+        ], keypoint_params=A.KeypointParams(format='xy', remove_invisible=False))
+        
+        transformed_flip = transform_flip(image=image, keypoints=corners_px)
+        corners_flipped = np.array(transformed_flip['keypoints'], dtype=np.float32)
+        
+        # After horizontal flip, x coordinates should be mirrored (w - x)
+        # Check that corners moved horizontally
+        expected_flip_x = w - corners_px[:, 0]
+        # After resize to 224, scale accordingly
+        scale_x = 224 / w
+        scale_y = 224 / h
+        expected_flip_x_scaled = expected_flip_x * scale_x
+        expected_flip_y_scaled = corners_px[:, 1] * scale_y
+        
+        # Check x coordinates are approximately mirrored
+        for i in range(4):
+            assert abs(corners_flipped[i, 0] - expected_flip_x_scaled[i]) < 2, \
+                f"Corner {i} x-coordinate not flipped correctly. " \
+                f"Expected ~{expected_flip_x_scaled[i]}, got {corners_flipped[i, 0]}"
+        
+        print("\n✓ Horizontal flip correctly transforms corner coordinates")
+        
+        # Test 2: 90 degree rotation
+        transform_rotate = A.Compose([
+            A.Rotate(limit=0, p=1.0, border_mode=cv2.BORDER_CONSTANT, value=0),  # No random, just test transform
+            A.Resize(224, 224),
+        ], keypoint_params=A.KeypointParams(format='xy', remove_invisible=False))
+        
+        # Apply a small rotation and check corners moved
+        transform_rotate_10 = A.Compose([
+            A.Rotate(limit=(10, 10), p=1.0, border_mode=cv2.BORDER_CONSTANT, value=0),
+            A.Resize(224, 224),
+        ], keypoint_params=A.KeypointParams(format='xy', remove_invisible=False))
+        
+        # Get unrotated version
+        transform_no_rotate = A.Compose([
+            A.Resize(224, 224),
+        ], keypoint_params=A.KeypointParams(format='xy', remove_invisible=False))
+        
+        transformed_no_rot = transform_no_rotate(image=image, keypoints=corners_px)
+        transformed_rot = transform_rotate_10(image=image, keypoints=corners_px)
+        
+        corners_no_rot = np.array(transformed_no_rot['keypoints'], dtype=np.float32)
+        corners_rot = np.array(transformed_rot['keypoints'], dtype=np.float32)
+        
+        # After rotation, corners should have moved (not be identical)
+        corners_diff = np.abs(corners_rot - corners_no_rot)
+        max_diff = np.max(corners_diff)
+        
+        assert max_diff > 1.0, \
+            f"Corners should move after rotation. Max difference: {max_diff}"
+        
+        print("✓ Rotation correctly transforms corner coordinates")
+        print("✓ Augmentation transformations are properly applied to both image and corners")

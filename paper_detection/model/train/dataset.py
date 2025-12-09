@@ -96,9 +96,9 @@ class CornerDetectionDataset(Dataset):
                 A.GaussianBlur(blur_limit=(3, 7), p=0.3),
                 A.GaussNoise(p=0.3),
 
-                # Random rotation and flip
+                # Random rotation (flip disabled to keep corner order consistent)
                 A.Rotate(limit=15, p=0.5),
-                A.HorizontalFlip(p=0.5),
+                # A.HorizontalFlip(p=0.5),  # Disabled: causes corner reordering issues
 
                 *basic_transform
             ], keypoint_params=A.KeypointParams(format='xy', remove_invisible=False))

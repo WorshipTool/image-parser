@@ -110,3 +110,58 @@ class TestDataset:
         print(f"✓ Saved to: {output_path}")
 
         assert output_path.exists(), "Grid image should be created"
+
+    def test_corners_clockwise_order(self):
+        """Test that corners are in correct clockwise order based on angle from centroid"""
+        dataset = CornerDetectionDataset(
+            augment=False  # No augmentation for order check
+        )
+
+        # Check multiple samples
+        num_samples = min(10, len(dataset))
+        
+        for idx in range(num_samples):
+            item = dataset[idx]
+            corners = item['corners'].numpy().reshape(4, 2)  # [4, 2]
+            
+            # Check 1: First corner should be closest to top-left (0, 0)
+            distances_to_origin = np.sum(corners ** 2, axis=1)
+            closest_idx = np.argmin(distances_to_origin)
+            assert closest_idx == 0, \
+                f"Image {item['image_name']}: First corner should be closest to top-left. " \
+                f"Closest is at index {closest_idx}, distances: {distances_to_origin}"
+            
+            # Check 2: Corners should be in clockwise order
+            # Calculate centroid
+            centroid = np.mean(corners, axis=0)
+            
+            # Calculate angles from centroid
+            angles = np.arctan2(
+                corners[:, 1] - centroid[1],
+                corners[:, 0] - centroid[0]
+            )
+            
+            # Angles should be in ascending order (accounting for wrap-around)
+            # Since we start from the corner closest to top-left, angles might wrap
+            # Check that angles are monotonically increasing or have one wrap point
+            angle_diffs = np.diff(angles)
+            
+            # Count negative differences (wrap-around points)
+            negative_diffs = np.sum(angle_diffs < 0)
+            
+            # Should have at most one wrap-around (from ~pi to ~-pi)
+            assert negative_diffs <= 1, \
+                f"Image {item['image_name']}: Too many wrap-around points ({negative_diffs}). " \
+                f"Angles: {angles}, Diffs: {angle_diffs}"
+            
+            # If there's a wrap, it should be large (close to 2*pi)
+            if negative_diffs == 1:
+                wrap_idx = np.where(angle_diffs < 0)[0][0]
+                wrap_size = abs(angle_diffs[wrap_idx])
+                assert wrap_size > np.pi, \
+                    f"Image {item['image_name']}: Wrap-around is too small ({wrap_size}). " \
+                    f"Expected > pi. Angles: {angles}"
+        
+        print(f"\n✓ Verified clockwise order for {num_samples} images")
+        print("✓ All corners are ordered by angle from centroid (clockwise direction)")
+        print("✓ First corner is always closest to top-left (0, 0)")

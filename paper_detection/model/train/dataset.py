@@ -14,6 +14,44 @@ from albumentations.pytorch import ToTensorV2
 from .config import TrainingConfig
 
 
+def order_corners_clockwise(corners: np.ndarray) -> np.ndarray:
+    """
+    Order corners in clockwise direction based on angle from centroid.
+    
+    The first corner will be the one closest to top-left corner of image (0, 0).
+    This ensures consistent ordering regardless of paper rotation or perspective.
+    
+    Args:
+        corners: Array of 4 points [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+    
+    Returns:
+        Ordered corners in clockwise direction starting from the corner closest to top-left
+    """
+    # Calculate centroid (center point)
+    centroid = np.mean(corners, axis=0)
+    
+    # Calculate angle from centroid to each corner
+    # Using atan2(y - cy, x - cx) where (cx, cy) is centroid
+    # atan2 returns angles in range [-pi, pi]
+    angles = np.arctan2(
+        corners[:, 1] - centroid[1],  # dy
+        corners[:, 0] - centroid[0]   # dx
+    )
+    
+    # Sort by angle (clockwise order)
+    sorted_indices = np.argsort(angles)
+    sorted_corners = corners[sorted_indices]
+    
+    # Find which corner is closest to top-left (0, 0)
+    distances_to_origin = np.sum(sorted_corners ** 2, axis=1)  # squared distance from (0,0)
+    closest_idx = np.argmin(distances_to_origin)
+    
+    # Rotate array so closest corner is first
+    ordered_corners = np.roll(sorted_corners, -closest_idx, axis=0)
+    
+    return ordered_corners
+
+
 class CornerDetectionDataset(Dataset):
     """Dataset for corner detection with augmentation"""
 
@@ -87,6 +125,9 @@ class CornerDetectionDataset(Dataset):
         # Get ground truth corners (normalized 0-1)
         gt_data = self.ground_truth[image_name]
         corners_norm = np.array(gt_data["corners"], dtype=np.float32)
+
+        # Ensure corners are in correct clockwise order (top-left, top-right, bottom-right, bottom-left)
+        corners_norm = order_corners_clockwise(corners_norm)
 
         # Convert to pixel coordinates for Albumentations
         corners_px = corners_norm.copy()

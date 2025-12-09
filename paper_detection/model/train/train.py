@@ -46,6 +46,7 @@ def validate(model, val_loader, criterion, device, image_size=224):
     model.eval()
     total_loss = 0
     total_pixel_error = 0
+    total_relative_error = 0
     num_batches = 0
 
     with torch.no_grad():
@@ -71,14 +72,19 @@ def validate(model, val_loader, criterion, device, image_size=224):
             # Euclidean distance for each corner
             distances = torch.sqrt(torch.sum((pred_pixels - true_pixels) ** 2, dim=2))
             pixel_error = distances.mean().item()
+            
+            # Relative error (as percentage of image size)
+            relative_error = (distances.mean() / image_size * 100).item()
 
             total_pixel_error += pixel_error
+            total_relative_error += relative_error
             num_batches += 1
 
     avg_loss = total_loss / num_batches
     avg_pixel_error = total_pixel_error / num_batches
+    avg_relative_error = total_relative_error / num_batches
 
-    return avg_loss, avg_pixel_error
+    return avg_loss, avg_pixel_error, avg_relative_error
 
 
 def train(config: TrainingConfig = None):
@@ -116,6 +122,7 @@ def train(config: TrainingConfig = None):
     print("\nStarting training...")
     best_val_loss = float('inf')
     best_pixel_error = float('inf')
+    best_relative_error = float('inf')
 
     for epoch in range(config.num_epochs):
         print(f"\nEpoch {epoch + 1}/{config.num_epochs}")
@@ -124,16 +131,17 @@ def train(config: TrainingConfig = None):
         train_loss = train_epoch(model, train_loader, criterion, optimizer, config.device)
 
         # Validate
-        val_loss, val_pixel_error = validate(model, val_loader, criterion, config.device, config.image_size)
+        val_loss, val_pixel_error, val_relative_error = validate(model, val_loader, criterion, config.device, config.image_size)
 
         print(f"Train Loss: {train_loss:.6f}")
         print(f"Val Loss: {val_loss:.6f}")
-        print(f"Val Pixel Error: {val_pixel_error:.2f}px")
+        print(f"Val Pixel Error: {val_pixel_error:.2f}px ({val_relative_error:.2f}%)")
 
         # Save best model
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_pixel_error = val_pixel_error
+            best_relative_error = val_relative_error
             checkpoint_path = config.output_dir / "best_model.pth"
             torch.save({
                 'epoch': epoch,
@@ -141,13 +149,14 @@ def train(config: TrainingConfig = None):
                 'optimizer_state_dict': optimizer.state_dict(),
                 'val_loss': val_loss,
                 'val_pixel_error': val_pixel_error,
+                'val_relative_error': val_relative_error,
             }, checkpoint_path)
-            print(f"✓ Saved best model (val_loss: {val_loss:.6f}, pixel_error: {val_pixel_error:.2f}px)")
+            print(f"✓ Saved best model (val_loss: {val_loss:.6f}, pixel_error: {val_pixel_error:.2f}px, relative_error: {val_relative_error:.2f}%)")
 
     print("\n" + "=" * 70)
     print("Training complete!")
     print(f"Best validation loss: {best_val_loss:.6f}")
-    print(f"Best pixel error: {best_pixel_error:.2f}px")
+    print(f"Best pixel error: {best_pixel_error:.2f}px ({best_relative_error:.2f}%)")
     print(f"Model saved to: {config.output_dir / 'best_model.pth'}")
     print("=" * 70)
 

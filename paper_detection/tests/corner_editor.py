@@ -304,7 +304,8 @@ class CornerEditor:
     def next_image(self):
         """Go to next image"""
         if self.corners_modified:
-            print("⚠ Warning: Unsaved changes!")
+            print("💾 Auto-saving changes before moving to next image...")
+            self.save_current_corners()
 
         self.current_index = (self.current_index + 1) % len(self.image_names)
         self.load_current_image()
@@ -312,7 +313,8 @@ class CornerEditor:
     def prev_image(self):
         """Go to previous image"""
         if self.corners_modified:
-            print("⚠ Warning: Unsaved changes!")
+            print("💾 Auto-saving changes before moving to previous image...")
+            self.save_current_corners()
 
         self.current_index = (self.current_index - 1) % len(self.image_names)
         self.load_current_image()
@@ -345,7 +347,8 @@ class CornerEditor:
 
             if key == ord('q') or key == 27:  # Q or ESC
                 if self.corners_modified:
-                    print("⚠ Warning: Exiting with unsaved changes!")
+                    print("💾 Auto-saving changes before exiting...")
+                    self.save_current_corners()
                 break
             elif key == ord('n'):  # Next
                 self.next_image()

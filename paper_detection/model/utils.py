@@ -4,7 +4,11 @@ Utility functions for image preprocessing
 
 import cv2
 import numpy as np
+from numpy.typing import NDArray
 from typing import Tuple
+
+# Type definitions
+Corners = NDArray[np.float32]  # Shape: [4, 2] - 4 corners with (x, y) coordinates
 
 # ImageNet normalization values (used for pretrained models)
 IMAGE_MEAN = [0.485, 0.456, 0.406]  # RGB mean

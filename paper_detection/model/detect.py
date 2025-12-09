@@ -12,7 +12,7 @@ from albumentations.pytorch import ToTensorV2
 
 from paper_detection.model.model import CornerDetectionCNN
 from paper_detection.model.train.config import TrainingConfig
-from paper_detection.model.utils import preprocess_image, IMAGE_MEAN, IMAGE_STD
+from paper_detection.model.utils import preprocess_image, IMAGE_MEAN, IMAGE_STD, Corners
 from paper_detection.model.config import IMAGE_SIZE
 
 
@@ -61,7 +61,7 @@ class CornerDetector:
         print(f"✓ Loaded model from: {model_path}")
         print(f"✓ Using device: {self.device}")
     
-    def detect(self, image: np.ndarray) -> np.ndarray:
+    def detect(self, image: np.ndarray) -> Corners:
         """
         Detect corners in image
         
@@ -99,7 +99,7 @@ class CornerDetector:
 
 
 def detect(image: Union[str, Path, np.ndarray], 
-           model_path: Union[str, Path] = None) -> np.ndarray:
+           model_path: Union[str, Path] = None) -> Corners:
     """
     Convenience function to detect corners in an image
     

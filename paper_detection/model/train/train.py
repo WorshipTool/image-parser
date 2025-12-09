@@ -152,7 +152,8 @@ def train(config: TrainingConfig = None):
     print("=" * 70)
 
 
-if __name__ == "__main__":
+def main():
+    """Main entry point for training"""
     # Create config
     config = TrainingConfig()
 
@@ -166,3 +167,7 @@ if __name__ == "__main__":
 
     # Run training
     train(config)
+
+
+if __name__ == "__main__":
+    main()

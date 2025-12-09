@@ -12,7 +12,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
 from paper_detection.model.train.config import TrainingConfig
-from paper_detection.model.utils import IMAGE_MEAN, IMAGE_STD
+from paper_detection.model.utils import IMAGE_MEAN, IMAGE_STD, preprocess_image
 
 
 def order_corners_clockwise(corners: np.ndarray) -> np.ndarray:
@@ -119,7 +119,9 @@ class CornerDetectionDataset(Dataset):
         # Load image
         image_path = self.images_dir / image_name
         image = cv2.imread(str(image_path))
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        
+        # Convert to RGB using preprocess_image
+        image = preprocess_image(image)
 
         h, w = image.shape[:2]
 

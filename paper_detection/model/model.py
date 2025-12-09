@@ -1,56 +1,57 @@
 """
-Simple CNN model for paper corner detection
+ResNet18-based model for paper corner detection
 """
 
 import torch
 import torch.nn as nn
+from torchvision import models
 
 from paper_detection.model.config import NUM_CORNERS
 
 
 class CornerDetectionCNN(nn.Module):
-    """Simple CNN for detecting 4 paper corners"""
+    """ResNet18-based model for detecting 4 paper corners"""
 
-    def __init__(self):
+    def __init__(self, pretrained=True):
         super().__init__()
 
         self.num_corners = NUM_CORNERS
 
-        # Feature extraction layers
+        # Load pretrained ResNet18
+        # Use weights parameter for newer PyTorch versions
+        if pretrained:
+            try:
+                # Try new API (PyTorch >= 1.13)
+                resnet = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+            except (AttributeError, TypeError):
+                # Fall back to old API
+                resnet = models.resnet18(pretrained=True)
+        else:
+            resnet = models.resnet18(weights=None)
+
+        # Use ResNet18 as feature extractor (remove final FC layer)
+        # ResNet18 outputs 512 features after avgpool
         self.features = nn.Sequential(
-            # Block 1
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),  # 224 -> 112
-
-            # Block 2
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),  # 112 -> 56
-
-            # Block 3
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),  # 56 -> 28
-
-            # Block 4
-            nn.Conv2d(128, 256, kernel_size=3, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),  # 28 -> 14
+            resnet.conv1,
+            resnet.bn1,
+            resnet.relu,
+            resnet.maxpool,
+            resnet.layer1,  # 64 channels
+            resnet.layer2,  # 128 channels
+            resnet.layer3,  # 256 channels
+            resnet.layer4,  # 512 channels
+            resnet.avgpool  # Global average pooling
         )
 
         # Regression head for corner coordinates
+        # Input: 512 features from ResNet18
         # Output: 4 corners * 2 coordinates (x, y) = 8 values
         self.regressor = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(256 * 14 * 14, 512),
+            nn.Linear(512, 256),
             nn.ReLU(inplace=True),
             nn.Dropout(0.5),
-            nn.Linear(512, 128),
+            nn.Linear(256, 128),
             nn.ReLU(inplace=True),
             nn.Dropout(0.3),
             nn.Linear(128, self.num_corners * 2),  # 4 corners, 2 coords each

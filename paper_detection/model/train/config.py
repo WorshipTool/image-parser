@@ -21,7 +21,7 @@ class TrainingConfig:
 
     # Training parameters
     batch_size: int = 4
-    num_epochs: int = 200
+    num_epochs: int = 5000
     learning_rate: float = 0.001
 
     # Model parameters (from shared config)

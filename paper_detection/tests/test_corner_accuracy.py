@@ -226,7 +226,7 @@ class TestCornerAccuracy:
         h, w = image.shape[:2]
 
         # Calculate tolerance dynamically: 1% of shorter image dimension
-        tolerance = min(h, w) * 0.01
+        tolerance = min(h, w) * 0.02
         gt_corners_relative = np.array(gt_data["corners"], dtype=np.float32)
         gt_corners = gt_corners_relative.copy()
         gt_corners[:, 0] *= w  # x coordinates

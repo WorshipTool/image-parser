@@ -78,10 +78,10 @@ class TesseractOCR(OCREngine):
             rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
             # Extract text with basic config
-            # Use --psm 3 (fully automatic page segmentation) - NO auto-orientation
-            # PSM 3 is better at detecting text orientation than PSM 6
-            # We still handle rotation ourselves, Tesseract should not rotate
-            config = f'--psm 3 -l {self.lang}'
+            # Use --psm 6 (assume single uniform block of text) - NO auto-orientation
+            # PSM 6 is preferred over PSM 1 which does auto-orientation
+            # We handle rotation ourselves, Tesseract should not rotate
+            config = f'--psm 6 -l {self.lang}'
             text = pytesseract.image_to_string(rgb_image, config=config)
 
             return text.strip()

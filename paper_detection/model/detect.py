@@ -6,13 +6,11 @@ import cv2
 import numpy as np
 import torch
 from pathlib import Path
-from typing import Union, Tuple
-import albumentations as A
-from albumentations.pytorch import ToTensorV2
+from typing import Union
 
 from paper_detection.model.model import CornerDetectionCNN
 from paper_detection.model.train.config import TrainingConfig
-from paper_detection.model.utils import preprocess_image, IMAGE_MEAN, IMAGE_STD, Corners
+from paper_detection.model.utils import preprocess_image_for_model, Corners
 from paper_detection.model.config import IMAGE_SIZE
 
 
@@ -22,7 +20,7 @@ class CornerDetector:
     def __init__(self, model_path: Union[str, Path] = None, device: str = None):
         """
         Initialize corner detector
-        
+
         Args:
             model_path: Path to trained model checkpoint. If None, uses default checkpoint.
             device: Device to run on ('cpu' or 'cuda'). If None, auto-detects.
@@ -32,69 +30,63 @@ class CornerDetector:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         else:
             self.device = device
-        
+
         # Set model path
         if model_path is None:
             config = TrainingConfig()
             model_path = config.output_dir / "best_model.pth"
         else:
             model_path = Path(model_path)
-        
+
         if not model_path.exists():
             raise FileNotFoundError(f"Model checkpoint not found: {model_path}")
-        
+
         # Load model
         self.model = CornerDetectionCNN()
         checkpoint = torch.load(model_path, map_location=self.device)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.model.to(self.device)
         self.model.eval()
-        
-        # Setup preprocessing transform
+
+        # Store image size
         self.image_size = IMAGE_SIZE
-        self.transform = A.Compose([
-            A.Resize(self.image_size, self.image_size),
-            A.Normalize(mean=IMAGE_MEAN, std=IMAGE_STD),
-            ToTensorV2(),
-        ])
-        
+
         print(f"✓ Loaded model from: {model_path}")
         print(f"✓ Using device: {self.device}")
     
     def detect(self, image: np.ndarray) -> Corners:
         """
         Detect corners in image
-        
+
         Args:
-            image: Input image in BGR format (OpenCV format) or RGB
-        
+            image: Input image in BGR format (OpenCV format)
+
         Returns:
             Corners array of shape [4, 2] with pixel coordinates
             Order: clockwise starting from corner closest to top-left
         """
         # Store original size
         original_h, original_w = image.shape[:2]
-        
-        # Convert to RGB
-        image_rgb = preprocess_image(image)
-        
-        # Apply resize, normalization and convert to tensor
-        transformed = self.transform(image=image_rgb)
-        image_tensor = transformed['image'].unsqueeze(0)  # Add batch dimension
-        image_tensor = image_tensor.to(self.device)
-        
+
+        # Apply unified preprocessing (BGR→RGB, resize, normalize, tensorize)
+        # This uses the SAME preprocessing as training
+        image_tensor = preprocess_image_for_model(image, image_size=self.image_size)
+
+        # Add batch dimension and move to device
+        image_tensor = image_tensor.unsqueeze(0).to(self.device)
+
         # Run inference
         with torch.no_grad():
             corners_flat = self.model(image_tensor)  # [1, 8]
-        
+
         # Reshape to [4, 2] and convert to numpy (normalized 0-1)
         corners_norm = corners_flat.cpu().numpy().reshape(4, 2)
-        
+
         # Convert to pixel coordinates of original image
         corners_px = corners_norm.copy()
         corners_px[:, 0] *= original_w
         corners_px[:, 1] *= original_h
-        
+
         return corners_px
 
 

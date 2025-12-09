@@ -115,7 +115,7 @@ def train(config: TrainingConfig = None):
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 
     # Loss and optimizer
-    criterion = nn.MSELoss()
+    criterion = nn.SmoothL1Loss()
     optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
 
     # Training loop

@@ -50,10 +50,10 @@ class CornerDetectionCNN(nn.Module):
             nn.Flatten(),
             nn.Linear(512, 256),
             nn.ReLU(inplace=True),
-            nn.Dropout(0.5),
+            nn.Dropout(0.3),
             nn.Linear(256, 128),
             nn.ReLU(inplace=True),
-            nn.Dropout(0.3),
+            nn.Dropout(0.2),
             nn.Linear(128, self.num_corners * 2),  # 4 corners, 2 coords each
         )
 

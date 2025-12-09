@@ -97,8 +97,16 @@ class CornerDetectionDataset(Dataset):
                 A.GaussNoise(p=0.3),
 
                 # Random rotation (flip disabled to keep corner order consistent)
-                A.Rotate(limit=15, p=0.5),
-                # A.HorizontalFlip(p=0.5),  # Disabled: causes corner reordering issues
+                A.ShiftScaleRotate(
+                    shift_limit=0.05,   # ±5 % posun
+                    scale_limit=0.10,   # ±10 % zoom
+                    rotate_limit=90,
+                    border_mode=cv2.BORDER_REPLICATE,
+                    p=0.9,
+                ),
+                A.HorizontalFlip(p=0.5),
+                A.VerticalFlip(p=0.2),
+                A.Perspective(scale=(0.03, 0.08), p=0.3),
 
                 *basic_transform
             ], keypoint_params=A.KeypointParams(format='xy', remove_invisible=False))
@@ -145,6 +153,9 @@ class CornerDetectionDataset(Dataset):
 
         image_tensor = transformed['image']
         corners_transformed = np.array(transformed['keypoints'], dtype=np.float32)
+
+        # Ensure corners are still in correct clockwise order after transformation
+        corners_transformed = order_corners_clockwise(corners_transformed)
 
         # Normalize corners back to 0-1 range (after resize to image_size)
         corners_normalized = corners_transformed / self.image_size

@@ -49,10 +49,13 @@ def validate(model, val_loader, criterion, device, image_size=224):
     total_relative_error = 0
     num_batches = 0
 
+    per_image_errors = []
+    per_image_names = []
     with torch.no_grad():
         for batch in tqdm(val_loader, desc="Validation"):
             images = batch['image'].to(device)
             corners = batch['corners'].to(device)
+            image_names = batch.get('image_name', [None]*images.shape[0])
 
             # Forward pass
             predictions = model(images)
@@ -71,14 +74,33 @@ def validate(model, val_loader, criterion, device, image_size=224):
 
             # Euclidean distance for each corner
             distances = torch.sqrt(torch.sum((pred_pixels - true_pixels) ** 2, dim=2))
-            pixel_error = distances.mean().item()
-            
-            # Relative error (as percentage of image size)
-            relative_error = (distances.mean() / image_size * 100).item()
+            pixel_errors = distances.mean(dim=1).cpu().numpy()  # shape: [batch]
+            relative_errors = (distances.mean(dim=1) / image_size * 100).cpu().numpy()
+
+            # Store per-image errors and names
+            per_image_errors.extend(pixel_errors.tolist())
+            per_image_names.extend(image_names)
+
+            pixel_error = pixel_errors.mean()
+            relative_error = relative_errors.mean()
 
             total_pixel_error += pixel_error
             total_relative_error += relative_error
             num_batches += 1
+
+    # Najdi nejlepší a 5 nejhorších obrázků
+    error_info = list(zip(per_image_names, per_image_errors))
+    error_info_sorted = sorted(error_info, key=lambda x: x[1])
+    best_image = error_info_sorted[0] if error_info_sorted else None
+    worst_images = error_info_sorted[-5:] if len(error_info_sorted) >= 5 else error_info_sorted[-len(error_info_sorted):]
+
+    print("\nPer-image pixel error distribution:")
+    if best_image:
+        print(f"Best image: {best_image[0]} | pixel error: {best_image[1]:.2f} px")
+    if worst_images:
+        print("Worst 5 images:")
+        for name, err in reversed(worst_images):
+            print(f"  {name} | pixel error: {err:.2f} px")
 
     avg_loss = total_loss / num_batches
     avg_pixel_error = total_pixel_error / num_batches
@@ -114,9 +136,16 @@ def train(config: TrainingConfig = None):
     model = create_model(device=config.device)
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 
-    # Loss and optimizer
+    # Loss, optimizer, scheduler
     criterion = nn.SmoothL1Loss()
     optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        factor=0.5,     # sníží LR na polovinu
+        patience=10,    # když se 10 epoch val loss nezlepší
+        min_lr=1e-6,    # minimální hranice
+        verbose=True
+    )
 
     # Training loop
     print("\nStarting training...")
@@ -136,6 +165,9 @@ def train(config: TrainingConfig = None):
         print(f"Train Loss: {train_loss:.6f}")
         print(f"Val Loss: {val_loss:.6f}")
         print(f"Val Pixel Error: {val_pixel_error:.2f}px ({val_relative_error:.2f}%)")
+
+        # Scheduler step
+        scheduler.step(val_loss)
 
         # Save best model
         if val_loss < best_val_loss:

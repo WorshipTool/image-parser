@@ -72,8 +72,16 @@ class CornerDetectionDataset(Dataset):
         with open(config.corners_file, 'r') as f:
             self.ground_truth = json.load(f)
 
-        # For debug, keep only first image
-        self.image_names = list(self.ground_truth.keys())
+
+        # Load allowed image names from dataset.json
+        dataset_json_path = Path(config.corners_file).parent / "dataset.json"
+        if dataset_json_path.exists():
+            with open(dataset_json_path, 'r') as f:
+                allowed_names = set(json.load(f))
+            # Only keep image names present in both corners.json and dataset.json
+            self.image_names = [name for name in self.ground_truth.keys() if name in allowed_names]
+        else:
+            self.image_names = list(self.ground_truth.keys())
         if max_images is not None:
             self.image_names = self.image_names[:max_images]
 
@@ -205,7 +213,7 @@ def create_dataloaders():
 
     # Create separate datasets for train and val
     train_dataset = CornerDetectionDataset(
-        augment=True  # Augmentation for training
+        augment=False  # Augmentation for training
     )
 
     val_dataset = CornerDetectionDataset(

@@ -339,8 +339,17 @@ def validate_epoch(model, val_loader, criterion, device, config, epoch, save_vis
             avg_corner_error_pixels, avg_corner_error_percent, avg_corner_success_rate)
 
 
-def train():
-    """Main training function"""
+def train(resume_from: str = None):
+    """
+    Main training function
+
+    Args:
+        resume_from: Path to checkpoint to resume from, or special values:
+                    - None: Start training from scratch
+                    - 'latest': Resume from latest checkpoint
+                    - 'best': Resume from best model
+                    - '<path>': Resume from specific checkpoint file
+    """
     # Load configuration
     config = SegmentationConfig()
 
@@ -380,7 +389,11 @@ def train():
         min_lr=1e-6
     )
 
-    # Training history
+    # Resume from checkpoint if requested
+    start_epoch = 1
+    best_val_loss = float('inf')
+    best_val_iou = 0.0
+    best_corner_error_percent = float('inf')
     history = {
         'train_loss': [],
         'train_iou': [],
@@ -394,18 +407,83 @@ def train():
         'lr': []
     }
 
-    best_val_loss = float('inf')
-    best_val_iou = 0.0
-    best_corner_error_percent = float('inf')
+    if resume_from is not None:
+        checkpoint_path = None
 
-    print(f"\nStarting training for {config.NUM_EPOCHS} epochs...")
+        if resume_from == 'latest':
+            # Find latest checkpoint
+            checkpoints = list(config.CHECKPOINT_DIR.glob('checkpoint_epoch_*.pth'))
+            if checkpoints:
+                checkpoint_path = max(checkpoints, key=lambda p: p.stat().st_mtime)
+                print(f"Resuming from latest checkpoint: {checkpoint_path}")
+            else:
+                print("No checkpoints found, starting from scratch")
+
+        elif resume_from == 'best':
+            # Resume from best model
+            if config.MODEL_PATH.exists():
+                checkpoint_path = config.MODEL_PATH
+                print(f"Resuming from best model: {checkpoint_path}")
+            else:
+                print("Best model not found, starting from scratch")
+
+        else:
+            # Resume from specific path
+            checkpoint_path = Path(resume_from)
+            if checkpoint_path.exists():
+                print(f"Resuming from checkpoint: {checkpoint_path}")
+            else:
+                print(f"Checkpoint {checkpoint_path} not found, starting from scratch")
+
+        # Load checkpoint if found
+        if checkpoint_path and checkpoint_path.exists():
+            checkpoint = torch.load(checkpoint_path, map_location=device)
+
+            # Load model state
+            model.load_state_dict(checkpoint['model_state_dict'])
+            print(f"  Loaded model from epoch {checkpoint['epoch']}")
+
+            # Load optimizer state
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            print(f"  Loaded optimizer state")
+
+            # Set start epoch
+            start_epoch = checkpoint['epoch'] + 1
+
+            # Load best metrics if available
+            if 'val_loss' in checkpoint:
+                best_val_loss = checkpoint['val_loss']
+                print(f"  Best val loss: {best_val_loss:.4f}")
+            if 'val_iou' in checkpoint:
+                best_val_iou = checkpoint['val_iou']
+                print(f"  Best val IoU: {best_val_iou*100:.1f}%")
+            if 'val_corner_error_percent' in checkpoint:
+                best_corner_error_percent = checkpoint['val_corner_error_percent']
+                print(f"  Best corner error: {best_corner_error_percent:.2f}%")
+
+            # Try to load training history
+            history_path = config.OUTPUT_DIR / "training_history.json"
+            if history_path.exists():
+                with open(history_path, 'r') as f:
+                    history = json.load(f)
+                print(f"  Loaded training history ({len(history['train_loss'])} epochs)")
+
+            print(f"\nResuming training from epoch {start_epoch}")
+        else:
+            print("\nStarting training from scratch")
+
+    if start_epoch == 1:
+        print(f"\nStarting training for {config.NUM_EPOCHS} epochs...")
+    else:
+        print(f"\nContinuing training from epoch {start_epoch} to {config.NUM_EPOCHS}...")
+
     print(f"Image size: {config.IMAGE_SIZE}x{config.IMAGE_SIZE}")
     print(f"Batch size: {config.BATCH_SIZE}")
     print(f"Learning rate: {config.LEARNING_RATE}")
     print(f"Output directory: {config.OUTPUT_DIR}")
     print()
 
-    for epoch in range(1, config.NUM_EPOCHS + 1):
+    for epoch in range(start_epoch, config.NUM_EPOCHS + 1):
         print(f"\nEpoch {epoch}/{config.NUM_EPOCHS}")
         print("-" * 60)
 

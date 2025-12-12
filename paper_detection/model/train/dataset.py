@@ -111,11 +111,11 @@ class CornerDetectionDataset(Dataset):
                     scale_limit=0.10,   # ±10% zoom
                     rotate_limit=90,
                     border_mode=cv2.BORDER_REPLICATE,
-                    p=0.9,
+                    p=0.6,
                 ),
-                A.HorizontalFlip(p=0.5),
-                A.VerticalFlip(p=0.2),
-                A.Perspective(scale=(0.03, 0.08), p=0.3),
+                A.HorizontalFlip(p=0.2),
+                A.VerticalFlip(p=0.1),
+                A.Perspective(scale=(0.03, 0.08), p=0.2),
 
                 # Resize (must be after augmentations)
                 *basic_transform
@@ -213,7 +213,7 @@ def create_dataloaders():
 
     # Create separate datasets for train and val
     train_dataset = CornerDetectionDataset(
-        augment=False  # Augmentation for training
+        augment=True  # Augmentation for training
     )
 
     val_dataset = CornerDetectionDataset(

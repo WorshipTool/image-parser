@@ -6,72 +6,59 @@ import torch
 import torch.nn as nn
 from torchvision import models
 
-from paper_detection.model.config import NUM_CORNERS
+from paper_detection.model.config import NUM_CORNERS, IMAGE_SIZE
+
 
 
 class CornerDetectionCNN(nn.Module):
     """ResNet18-based model for detecting 4 paper corners"""
 
-    def __init__(self, pretrained=True):
+    def __init__(self, pretrained=True, freeze_backbone=False, dropout=0.3):
         super().__init__()
 
-        self.num_corners = NUM_CORNERS
+        freeze_backbone = True
 
+
+        self.num_corners = NUM_CORNERS
         # Load pretrained ResNet18
-        # Use weights parameter for newer PyTorch versions
         if pretrained:
             try:
-                # Try new API (PyTorch >= 1.13)
                 resnet = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
             except (AttributeError, TypeError):
-                # Fall back to old API
                 resnet = models.resnet18(pretrained=True)
         else:
-            resnet = models.resnet18(weights=None)
-
-        # Use ResNet18 as feature extractor (remove final FC layer)
-        # ResNet18 outputs 512 features after avgpool
-        self.features = nn.Sequential(
-            resnet.conv1,
-            resnet.bn1,
-            resnet.relu,
-            resnet.maxpool,
-            resnet.layer1,  # 64 channels
-            resnet.layer2,  # 128 channels
-            resnet.layer3,  # 256 channels
-            resnet.layer4,  # 512 channels
-            resnet.avgpool  # Global average pooling
-        )
-
-        # Regression head for corner coordinates
-        # Input: 512 features from ResNet18
-        # Output: 4 corners * 2 coordinates (x, y) = 8 values
-        self.regressor = nn.Sequential(
+            try:
+                resnet = models.resnet18(weights=None)
+            except TypeError:
+                resnet = models.resnet18(pretrained=False)
+        # Use ResNet18 as backbone (remove final FC layer)
+        self.backbone = nn.Sequential(*list(resnet.children())[:-2])
+        if freeze_backbone:
+            for param in self.backbone.parameters():
+                param.requires_grad = False
+        # Regression head
+        self.head = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(512, 256),
+            nn.Linear(512 * IMAGE_SIZE * IMAGE_SIZE // (32 * 32), 4096),
             nn.ReLU(inplace=True),
-            nn.Dropout(0.3),
+            nn.Dropout(dropout),
+            nn.Linear(4096, 256),
+            nn.ReLU(inplace=True),
+            nn.Dropout(dropout),
             nn.Linear(256, 128),
             nn.ReLU(inplace=True),
-            nn.Dropout(0.2),
-            nn.Linear(128, self.num_corners * 2),  # 4 corners, 2 coords each
+            nn.Dropout(dropout),
+            nn.Linear(128, self.num_corners * 2)
         )
 
     def forward(self, x):
-        """
-        Args:
-            x: Input images [batch_size, 3, 224, 224]
-
-        Returns:
-            Corner coordinates [batch_size, 8] (normalized 0-1)
-        """
-        features = self.features(x)
-        corners = self.regressor(features)
-        return corners
+        feats = self.backbone(x)  # [B, 512, 1, 1]
+        out = self.head(feats)    # [B, 8]
+        return out
 
 
-def create_model(device="cpu"):
-    """Create and initialize model"""
-    model = CornerDetectionCNN()
+def create_model(device="cpu", pretrained=True, freeze_backbone=False, dropout=0.3):
+    """Create and initialize model (API compatible, now supports pretrained/freeze_backbone/dropout)"""
+    model = CornerDetectionCNN(pretrained=pretrained, freeze_backbone=freeze_backbone, dropout=dropout)
     model = model.to(device)
     return model

@@ -1,1 +1,1 @@
-Vsechny popisky, komentare apod pis v anglictine, nehlede na to v jakem jazyce se poklada dotaz ci zadani. Vzdy pouzivej anglictinu.
+Vsechny popisky, komentare apod pis v anglictine, nehlede na to v jakem jazyce se poklada dotaz ci zadani. Vzdy pouzivej anglictinu. a nikdy mi sam nevytvarej commity a nic nevytvarej v gitu, z gitu muzes jen cist

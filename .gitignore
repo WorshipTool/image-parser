@@ -175,6 +175,9 @@ temp/
 
 # Test output images
 paper_detection/tests/output/
+paper_detection/model/tests/output/
+paper_transform/document_orient/tests/output/
+parser/tests/output/
 
 # ML model checkpoints and training artifacts
 paper_detection/model/checkpoints/

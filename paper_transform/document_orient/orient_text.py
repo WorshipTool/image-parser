@@ -10,9 +10,9 @@ import logging
 
 from .ocr_engines import create_ocr_engine, OCREngine
 
-# Import fallback orientation from paper_transform
+# Import fallback orientation from parent module
 try:
-    from paper_transform.orient import auto_orient as geometric_orient
+    from ..orient import auto_orient as geometric_orient
     GEOMETRIC_FALLBACK_AVAILABLE = True
 except ImportError:
     GEOMETRIC_FALLBACK_AVAILABLE = False
@@ -131,6 +131,7 @@ def _calculate_text_score(text: str, debug: bool = False) -> float:
     The score is based on:
     - Length of text (more text = better)
     - Purity: ratio of alphanumeric characters to total characters
+    - Word ratio: ratio of actual words to total tokens (detects gibberish)
 
     This scoring works well for documents with chords, lyrics, and mixed content.
 
@@ -173,12 +174,27 @@ def _calculate_text_score(text: str, debug: bool = False) -> float:
     if purity > 0.9:
         purity = purity * 1.1  # Small bonus for very clean text
 
+    # Calculate word ratio to detect gibberish
+    # Split by whitespace and count tokens with reasonable length (2+ chars)
+    tokens = [t.strip('.,;:!?\-\'\"()[]') for t in cleaned_text.split()]
+    tokens = [t for t in tokens if len(t) >= 2]
+
+    word_ratio = 1.0  # Default to 1.0 if no tokens
+    if tokens:
+        # Count tokens that look like words (mostly letters, min 2 chars)
+        word_like = sum(1 for t in tokens if re.match(r'^[A-Za-z\u00C0-\u017F\u0100-\u024F]{2,}', t))
+        word_ratio = word_like / len(tokens)
+
+        # Heavily penalize low word ratio (indicates upside down or gibberish)
+        if word_ratio < 0.3:
+            purity = purity * 0.3  # 70% penalty for mostly gibberish
+
     # Calculate final score
     # Length * purity gives higher scores to longer, cleaner text
     score = total_chars * purity
 
     if debug:
-        logger.debug(f"Text scoring: len={total_chars}, purity={purity:.2f}, score={score:.2f}")
+        print(f"    [Scoring] len={total_chars}, purity={purity:.2f}, word_ratio={word_ratio:.2f}, score={score:.2f}")
 
     return score
 
@@ -264,12 +280,44 @@ def orient_by_text(
         # Extract text via OCR (Tesseract does NOT auto-rotate)
         try:
             text = ocr.extract_text(rotated)
+
+            # Also get confidence score if available (Tesseract only)
+            confidence = 0.0
+            if ocr_engine == "tesseract":
+                try:
+                    import pytesseract
+                    from pytesseract import Output
+                    data = pytesseract.image_to_data(rotated, output_type=Output.DICT)
+                    # Average confidence of detected text
+                    confidences = [int(c) for c in data['conf'] if int(c) > 0]
+                    if confidences:
+                        confidence = sum(confidences) / len(confidences)
+                except Exception:
+                    confidence = 0.0
+
         except Exception as e:
             logger.warning(f"OCR failed for {angle}° rotation: {e}")
             text = ""
+            confidence = 0.0
 
         # Calculate base score based on text quality
         score = _calculate_text_score(text, debug=debug)
+
+        # Apply confidence multiplier (0-100 range → 0-1.5 multiplier)
+        # High confidence (80+): 1.2x boost
+        # Medium confidence (50-80): 1.0x normal
+        # Low confidence (<50): 0.7x penalty
+        if confidence > 0:
+            if confidence >= 80:
+                confidence_mult = 1.2
+            elif confidence >= 50:
+                confidence_mult = 1.0
+            else:
+                confidence_mult = 0.7
+            score = score * confidence_mult
+
+            if debug:
+                print(f"  OCR confidence: {confidence:.1f}% (multiplier: {confidence_mult:.2f}x)")
 
         # Detect if text runs horizontally or vertically
         text_dir = _detect_text_orientation(rotated)
@@ -328,7 +376,8 @@ def _fallback_to_geometric(image_bgr: np.ndarray) -> np.ndarray:
     """
     if GEOMETRIC_FALLBACK_AVAILABLE:
         logger.info("Using geometric orientation fallback")
-        return geometric_orient(image_bgr, orientation="auto")
+        # Use auto_geometric to avoid circular recursion
+        return geometric_orient(image_bgr, orientation="auto_geometric", use_ocr=False)
     else:
         # No fallback available, return original
         logger.warning("No geometric fallback available, returning original image")

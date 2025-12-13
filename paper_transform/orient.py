@@ -4,29 +4,37 @@ Auto-orientation for warped paper documents
 
 import cv2
 import numpy as np
-from typing import Literal
+from typing import Literal, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def auto_orient(
     image_bgr: np.ndarray,
-    orientation: Literal["auto", "portrait", "landscape"] = "auto"
+    orientation: Literal["auto", "auto_text", "auto_geometric", "portrait", "landscape"] = "auto",
+    use_ocr: bool = True,
+    ocr_engine: str = "tesseract",
+    debug: bool = False
 ) -> np.ndarray:
     """
     Automatically orient a document image to the correct reading direction.
 
-    This function uses a simple heuristic based on aspect ratio to determine
-    if the document should be in portrait or landscape orientation. It assumes
-    most documents are taller than they are wide (portrait).
-
-    For more sophisticated orientation detection, OCR-based or ML-based methods
-    can be added in the future.
+    This function can use two methods:
+    1. Text-based orientation (default): Uses OCR to detect text orientation
+    2. Geometric orientation: Uses aspect ratio heuristic
 
     Args:
         image_bgr: Input warped document image in BGR format
         orientation: Desired orientation mode:
-            - "auto": Automatically detect best orientation (default)
+            - "auto": Try text-based first, fall back to geometric (default)
+            - "auto_text": Force text-based orientation (requires OCR)
+            - "auto_geometric": Force geometric orientation (aspect ratio)
             - "portrait": Force portrait orientation (height > width)
             - "landscape": Force landscape orientation (width > height)
+        use_ocr: If True and orientation is "auto", try OCR-based detection first
+        ocr_engine: OCR engine to use ('tesseract' or 'easyocr')
+        debug: If True, print debug information
 
     Returns:
         Oriented image in BGR format
@@ -34,24 +42,54 @@ def auto_orient(
     Example:
         >>> from paper_transform import warp_paper, auto_orient
         >>>
+        >>> # Text-based orientation (default)
         >>> warped = warp_paper(image, corners)
         >>> oriented = auto_orient(warped)
-        >>> cv2.imwrite('oriented.jpg', oriented)
+        >>>
+        >>> # Force geometric orientation only
+        >>> oriented = auto_orient(warped, orientation="auto_geometric")
+        >>>
+        >>> # Debug mode to see scores
+        >>> oriented = auto_orient(warped, debug=True)
 
     Note:
-        The auto mode uses a simple aspect ratio heuristic:
-        - If width > height: rotate 90° counterclockwise to make portrait
-        - If height >= width: keep as is (already portrait)
+        Text-based orientation is more accurate but slower. It tries all
+        four rotations and selects the one with the most readable text.
 
-        This works well for most documents but may need manual override
-        for square documents or documents that are intentionally landscape.
+        Geometric orientation is fast but less accurate. It uses aspect ratio
+        to prefer portrait orientation.
     """
     if image_bgr is None or image_bgr.size == 0:
         raise ValueError("Input image is None or empty")
 
     height, width = image_bgr.shape[:2]
 
-    if orientation == "auto":
+    # Handle text-based orientation modes
+    if orientation in ["auto", "auto_text"]:
+        if use_ocr or orientation == "auto_text":
+            try:
+                from .document_orient import orient_by_text
+                return orient_by_text(
+                    image_bgr,
+                    ocr_engine=ocr_engine,
+                    debug=debug
+                )
+            except ImportError as e:
+                if orientation == "auto_text":
+                    raise ImportError(
+                        f"OCR engine not available for text-based orientation: {e}\n"
+                        "Install with: pip install pytesseract"
+                    )
+                else:
+                    # Fall through to geometric orientation
+                    logger.info("OCR not available, using geometric orientation")
+            except Exception as e:
+                if debug:
+                    logger.warning(f"Text-based orientation failed: {e}, falling back to geometric")
+                # Fall through to geometric orientation
+
+    # Handle geometric orientation modes
+    if orientation in ["auto", "auto_geometric"]:
         # Simple heuristic: prefer portrait orientation
         # Most documents (A4, letter, etc.) are taller than wide
         if width > height:

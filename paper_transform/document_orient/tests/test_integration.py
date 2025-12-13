@@ -6,8 +6,8 @@ import pytest
 import numpy as np
 import cv2
 from unittest.mock import Mock, patch
-from paper_detection.document_orient.orient_text import orient_by_text
-from paper_detection.document_orient.ocr_engines import TesseractOCR
+from paper_transform.document_orient.orient_text import orient_by_text
+from paper_transform.document_orient.ocr_engines import TesseractOCR
 
 
 class TestOrientationLogic:

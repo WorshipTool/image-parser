@@ -8,9 +8,9 @@ import numpy as np
 from pathlib import Path
 from typing import Optional, Tuple
 
-from paper_detection.segmentation.config import SegmentationConfig
-from paper_detection.segmentation.model import UNet
-from paper_detection.segmentation.postprocess import mask_to_corners, scale_corners
+from paper_detection.model.config import ModelConfig
+from paper_detection.model.model import UNet
+from paper_detection.model.postprocess import mask_to_corners, scale_corners
 
 
 class SegmentationInference:
@@ -20,7 +20,7 @@ class SegmentationInference:
     Handles model loading, preprocessing, inference, and postprocessing
     """
 
-    def __init__(self, model_path: Optional[Path] = None, config: Optional[SegmentationConfig] = None):
+    def __init__(self, model_path: Optional[Path] = None, config: Optional[ModelConfig] = None):
         """
         Initialize inference engine
 
@@ -28,7 +28,7 @@ class SegmentationInference:
             model_path: Path to trained model weights
             config: Configuration (if None, uses default)
         """
-        self.config = config if config is not None else SegmentationConfig()
+        self.config = config if config is not None else ModelConfig()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Load model

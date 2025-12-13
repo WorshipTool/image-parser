@@ -5,7 +5,7 @@ Unit tests for U-Net model
 import pytest
 import torch
 
-from paper_detection.segmentation.model import (
+from paper_detection.model.model import (
     UNet,
     create_unet,
     DiceLoss,

@@ -9,9 +9,9 @@ import json
 from pathlib import Path
 
 from paper_detection import PaperDetector
-from paper_detection.segmentation.dataset import SegmentationDataset, generate_mask_from_corners
-from paper_detection.segmentation.config import SegmentationConfig
-from paper_detection.segmentation.postprocess import min_corner_matching_error
+from paper_detection.model.dataset import SegmentationDataset, generate_mask_from_corners
+from paper_detection.model.config import ModelConfig
+from paper_detection.model.postprocess import min_corner_matching_error
 
 
 class TestDatasetIntegration:
@@ -20,7 +20,7 @@ class TestDatasetIntegration:
     @pytest.fixture
     def config(self):
         """Create test configuration"""
-        return SegmentationConfig()
+        return ModelConfig()
 
     @pytest.fixture
     def corners_file(self, config):

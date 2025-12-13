@@ -1,10 +1,10 @@
 # Paper Segmentation Module
 
-U-Net based segmentation for robust paper detection with corner extraction.
+U-Net based model for robust paper detection with corner extraction.
 
 ## Overview
 
-This module implements a **segmentation-based** approach to paper corner detection, replacing the previous regression-based method. The pipeline consists of:
+This module implements a **model-based** approach to paper corner detection, replacing the previous regression-based method. The pipeline consists of:
 
 1. **U-Net Model**: Predicts a binary mask of the paper region
 2. **Post-processing**: Extracts 4 corners from the mask using OpenCV contour analysis
@@ -121,12 +121,12 @@ Ground truth masks are **automatically generated** from corners using `cv2.fillP
 
 ```bash
 # Train with default settings
-python -m paper_detection.segmentation
+python -m paper_detection.model
 ```
 
 ### Configuration
 
-Edit `paper_detection/segmentation/config.py`:
+Edit `paper_detection/model/config.py`:
 
 ```python
 @dataclass
@@ -152,17 +152,17 @@ class SegmentationConfig:
     # Data paths
     IMAGES_DIR: Path = Path("paper_detection/data/images")
     CORNERS_FILE: Path = Path("paper_detection/data/corners.json")
-    MODEL_PATH: Path = Path("paper_detection/models/paper_segmentation_unet.pth")
+    MODEL_PATH: Path = Path("paper_detection/models/paper_model_unet.pth")
 ```
 
 ### Training Output
 
 The training script produces:
 
-1. **Model checkpoint**: `paper_detection/models/paper_segmentation_unet.pth`
+1. **Model checkpoint**: `paper_detection/models/paper_model_unet.pth`
 2. **Training history**: `paper_detection/models/training_history.json`
-3. **Visualizations**: `temp/segmentation_debug/val_predictions/`
-4. **Checkpoints**: `paper_detection/models/segmentation_checkpoints/` (every 50 epochs)
+3. **Visualizations**: `temp/model_debug/val_predictions/`
+4. **Checkpoints**: `paper_detection/models/model_checkpoints/` (every 50 epochs)
 
 ### Metrics Tracked
 
@@ -173,7 +173,7 @@ The training script produces:
 
 ### Visualization
 
-Validation predictions are saved every 10 epochs to `temp/segmentation_debug/val_predictions/`:
+Validation predictions are saved every 10 epochs to `temp/model_debug/val_predictions/`:
 
 ```
 Original | Ground Truth Mask | Predicted Mask + Corners
@@ -204,7 +204,7 @@ if corners is not None:
 ### Direct Segmentation Inference
 
 ```python
-from paper_detection.segmentation.infer import SegmentationInference
+from paper_detection.model.infer import SegmentationInference
 import cv2
 
 # Create inference engine
@@ -223,7 +223,7 @@ mask_prob, mask_resized = inference.predict_mask(image)
 ### Visualization
 
 ```python
-from paper_detection.segmentation.infer import SegmentationInference
+from paper_detection.model.infer import SegmentationInference
 from pathlib import Path
 
 inference = SegmentationInference()
@@ -241,7 +241,7 @@ vis = inference.visualize_detection(
 
 ## Integration with paper_transform
 
-The segmentation module is **fully compatible** with the existing `paper_transform` module:
+The model module is **fully compatible** with the existing `paper_transform` module:
 
 ```python
 from paper_detection import PaperDetector
@@ -266,14 +266,14 @@ if corners is not None:
 ### Run All Tests
 
 ```bash
-# Run all segmentation tests
-pytest paper_detection/segmentation/tests/ -v
+# Run all model tests
+pytest paper_detection/model/tests/ -v
 
 # Run specific test file
-pytest paper_detection/segmentation/tests/test_postprocess.py -v
+pytest paper_detection/model/tests/test_postprocess.py -v
 
 # Run with coverage
-pytest paper_detection/segmentation/tests/ --cov=paper_detection.segmentation
+pytest paper_detection/model/tests/ --cov=paper_detection.model
 ```
 
 ### Unit Tests
@@ -285,18 +285,18 @@ pytest paper_detection/segmentation/tests/ --cov=paper_detection.segmentation
 ### Integration Tests
 
 Integration tests require:
-- Trained model at `paper_detection/models/paper_segmentation_unet.pth`
+- Trained model at `paper_detection/models/paper_model_unet.pth`
 - Test images in `paper_detection/data/images/`
 - Ground truth in `paper_detection/data/corners.json`
 
 ```bash
-pytest paper_detection/segmentation/tests/test_integration.py -v
+pytest paper_detection/model/tests/test_integration.py -v
 ```
 
 ## Module Structure
 
 ```
-paper_detection/segmentation/
+paper_detection/model/
 ├── __init__.py              # Public API exports
 ├── __main__.py             # CLI training entry point
 ├── config.py               # Configuration dataclass
@@ -362,12 +362,12 @@ paper_detection/segmentation/
 ### Issue: Model not found
 
 ```
-FileNotFoundError: Model not found: paper_detection/models/paper_segmentation_unet.pth
+FileNotFoundError: Model not found: paper_detection/models/paper_model_unet.pth
 ```
 
 **Solution**: Train the model first:
 ```bash
-python -m paper_detection.segmentation
+python -m paper_detection.model
 ```
 
 ### Issue: No corners detected
@@ -437,11 +437,11 @@ This ensures consistent ordering across all images.
 | **Model size** | ⚠️ Larger (~50MB) | ✅ Smaller (~10MB) |
 | **Interpretability** | ✅ Visual mask | ❌ Black box |
 
-**Recommendation**: Use segmentation mode for production.
+**Recommendation**: Use model mode for production.
 
 ## API Compatibility
 
-The segmentation module maintains **full backward compatibility** with existing code:
+The model module maintains **full backward compatibility** with existing code:
 
 ```python
 from paper_detection import PaperDetector
@@ -455,7 +455,7 @@ When adding features:
 1. Add unit tests in `tests/`
 2. Update this README
 3. Ensure backward compatibility
-4. Run full test suite: `pytest paper_detection/segmentation/tests/`
+4. Run full test suite: `pytest paper_detection/model/tests/`
 
 ## License
 

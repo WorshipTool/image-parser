@@ -11,10 +11,10 @@ import numpy as np
 import cv2
 from tqdm import tqdm
 
-from paper_detection.segmentation.config import SegmentationConfig
-from paper_detection.segmentation.model import create_unet, CombinedLoss
-from paper_detection.segmentation.dataset import create_dataloaders
-from paper_detection.segmentation.postprocess import mask_to_corners, min_corner_matching_error
+from paper_detection.model.config import ModelConfig
+from paper_detection.model.model import create_unet, CombinedLoss
+from paper_detection.model.dataset import create_dataloaders
+from paper_detection.model.postprocess import mask_to_corners, min_corner_matching_error
 
 
 def calculate_iou(pred_mask: torch.Tensor, true_mask: torch.Tensor, threshold: float = 0.5) -> float:
@@ -76,7 +76,7 @@ def calculate_dice(pred_mask: torch.Tensor, true_mask: torch.Tensor, threshold: 
 def calculate_corner_error(
     pred_masks: torch.Tensor,
     gt_corners: torch.Tensor,
-    config: SegmentationConfig
+    config: ModelConfig
 ) -> tuple:
     """
     Calculate corner detection error from predicted masks
@@ -144,7 +144,7 @@ def visualize_predictions(
     image_names: list,
     output_dir: Path,
     epoch: int,
-    config: SegmentationConfig
+    config: ModelConfig
 ):
     """
     Save visualization of predictions (mask + corners overlay)
@@ -351,7 +351,7 @@ def train(resume_from: str = None):
                     - '<path>': Resume from specific checkpoint file
     """
     # Load configuration
-    config = SegmentationConfig()
+    config = ModelConfig()
 
     # Set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

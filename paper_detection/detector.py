@@ -7,7 +7,7 @@ from typing import Optional
 from pathlib import Path
 
 from paper_detection.types import Corners
-from paper_detection.segmentation.infer import SegmentationInference
+from paper_detection.model.infer import SegmentationInference
 
 
 class PaperDetector:

@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
-from paper_detection.segmentation.config import SegmentationConfig
+from paper_detection.model.config import ModelConfig
 
 
 def generate_mask_from_corners(corners: np.ndarray, image_shape: tuple) -> np.ndarray:
@@ -45,7 +45,7 @@ class SegmentationDataset(Dataset):
     Loads images and generates ground truth masks from corner annotations
     """
 
-    def __init__(self, config: SegmentationConfig, augment: bool = True, max_images: int = None):
+    def __init__(self, config: ModelConfig, augment: bool = True, max_images: int = None):
         """
         Args:
             config: Segmentation configuration
@@ -182,7 +182,7 @@ class SegmentationDataset(Dataset):
         }
 
 
-def create_dataloaders(config: SegmentationConfig):
+def create_dataloaders(config: ModelConfig):
     """
     Create train and validation dataloaders
 

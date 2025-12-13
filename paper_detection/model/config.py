@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 @dataclass
-class SegmentationConfig:
+class ModelConfig:
     """Configuration for segmentation model training and inference"""
 
     # Model parameters

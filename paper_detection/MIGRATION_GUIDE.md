@@ -57,7 +57,7 @@ detector = PaperDetector()
 
 1. **Train the model**:
    ```bash
-   python -m paper_detection.segmentation
+   python -m paper_detection.model
    ```
 
 2. **Monitor training**:
@@ -66,7 +66,7 @@ detector = PaperDetector()
    - Best model saved to `paper_detection/models/paper_segmentation_unet.pth`
 
 3. **Adjust configuration** (optional):
-   Edit `paper_detection/segmentation/config.py` to tune:
+   Edit `paper_detection/model/config.py` to tune:
    - Image size
    - Batch size
    - Learning rate
@@ -114,7 +114,7 @@ corners = detector.detect(image, debug=True)
 ### Visualization
 
 ```python
-from paper_detection.segmentation.infer import SegmentationInference
+from paper_detection.model.infer import SegmentationInference
 from pathlib import Path
 
 inference = SegmentationInference()
@@ -201,7 +201,7 @@ FileNotFoundError: Model not found: paper_detection/models/paper_segmentation_un
 
 **Solution**: Train the model first:
 ```bash
-python -m paper_detection.segmentation
+python -m paper_detection.model
 ```
 
 Or temporarily use regression mode:
@@ -241,7 +241,7 @@ detector = PaperDetector(detection_mode="regression")
 ## Migration Checklist
 
 - [ ] Install new dependencies (`albumentations`, `tqdm`)
-- [ ] Train segmentation model: `python -m paper_detection.segmentation`
+- [ ] Train segmentation model: `python -m paper_detection.model`
 - [ ] Verify model saved to `paper_detection/models/paper_segmentation_unet.pth`
 - [ ] Test on a few sample images
 - [ ] Compare accuracy with regression mode

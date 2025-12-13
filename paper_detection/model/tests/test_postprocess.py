@@ -6,7 +6,7 @@ import pytest
 import numpy as np
 import cv2
 
-from paper_detection.segmentation.postprocess import (
+from paper_detection.model.postprocess import (
     order_corners_clockwise,
     extract_corners_from_mask,
     mask_to_corners,
@@ -14,7 +14,7 @@ from paper_detection.segmentation.postprocess import (
     min_corner_matching_error,
     clean_mask
 )
-from paper_detection.segmentation.dataset import generate_mask_from_corners
+from paper_detection.model.dataset import generate_mask_from_corners
 
 
 class TestOrderCornersClockwise:

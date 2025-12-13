@@ -104,29 +104,16 @@ class TestDatasetIntegration:
 
 
 class TestPaperDetectorIntegration:
-    """Test PaperDetector with segmentation mode"""
+    """Test PaperDetector with segmentation"""
 
-    def test_detector_creation_segmentation(self):
-        """Test creating detector in segmentation mode"""
+    def test_detector_creation(self):
+        """Test creating detector"""
         # Should fail if model doesn't exist yet
         try:
-            detector = PaperDetector(detection_mode="segmentation")
-            assert detector.detection_mode == "segmentation"
+            detector = PaperDetector()
+            assert detector is not None
         except FileNotFoundError:
             pytest.skip("Segmentation model not trained yet")
-
-    def test_detector_creation_regression(self):
-        """Test creating detector in regression mode (legacy)"""
-        try:
-            detector = PaperDetector(detection_mode="regression")
-            assert detector.detection_mode == "regression"
-        except Exception:
-            pytest.skip("Regression model not available")
-
-    def test_detector_invalid_mode(self):
-        """Test that invalid mode raises error"""
-        with pytest.raises(ValueError):
-            PaperDetector(detection_mode="invalid_mode")
 
     def test_detector_detect_basic(self):
         """Test basic detection on a simple test image"""
@@ -135,7 +122,7 @@ class TestPaperDetectorIntegration:
         cv2.rectangle(image, (100, 100), (300, 300), (255, 255, 255), -1)
 
         try:
-            detector = PaperDetector(detection_mode="segmentation")
+            detector = PaperDetector()
             corners = detector.detect(image)
 
             # May or may not find corners depending on model training
@@ -198,7 +185,7 @@ class TestEndToEnd:
             gt_corners_px[:, 1] *= h
 
             # Detect corners
-            detector = PaperDetector(detection_mode="segmentation")
+            detector = PaperDetector()
             pred_corners = detector.detect(image)
 
             # Check if detection succeeded

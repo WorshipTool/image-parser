@@ -187,8 +187,8 @@ Original | Ground Truth Mask | Predicted Mask + Corners
 from paper_detection import PaperDetector
 import cv2
 
-# Create detector (segmentation mode is default)
-detector = PaperDetector(detection_mode="segmentation")
+# Create detector
+detector = PaperDetector()
 
 # Load image
 image = cv2.imread("test_image.jpg")
@@ -199,14 +199,6 @@ corners = detector.detect(image)  # Returns [4, 2] array or None
 if corners is not None:
     print(f"Detected corners: {corners}")
     # corners are in original image coordinates
-```
-
-### Legacy Regression Mode
-
-```python
-# Use old regression model
-detector = PaperDetector(detection_mode="regression")
-corners = detector.detect(image)
 ```
 
 ### Direct Segmentation Inference
@@ -256,8 +248,8 @@ from paper_detection import PaperDetector
 from paper_transform import warp_document, orient_document
 import cv2
 
-# Detect corners using segmentation
-detector = PaperDetector(detection_mode="segmentation")
+# Detect corners
+detector = PaperDetector()
 image = cv2.imread("photo.jpg")
 corners = detector.detect(image)
 
@@ -355,13 +347,13 @@ paper_detection/segmentation/
 2. **Caching**: Reuse inference engine
    ```python
    # Good: Create once
-   detector = PaperDetector(detection_mode="segmentation")
+   detector = PaperDetector()
    for image in images:
        corners = detector.detect(image)
 
    # Bad: Create multiple times
    for image in images:
-       detector = PaperDetector(detection_mode="segmentation")  # Slow!
+       detector = PaperDetector()  # Slow!
        corners = detector.detect(image)
    ```
 
@@ -452,14 +444,9 @@ This ensures consistent ordering across all images.
 The segmentation module maintains **full backward compatibility** with existing code:
 
 ```python
-# Old code (still works)
 from paper_detection import PaperDetector
-detector = PaperDetector()  # Now uses segmentation by default
+detector = PaperDetector()
 corners = detector.detect(image)
-
-# Explicit modes
-detector_seg = PaperDetector(detection_mode="segmentation")  # New
-detector_reg = PaperDetector(detection_mode="regression")    # Legacy
 ```
 
 ## Contributing

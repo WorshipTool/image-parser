@@ -1,6 +1,8 @@
 # Migration Guide: Regression → Segmentation
 
-This guide explains how to migrate from the old regression-based corner detection to the new segmentation-based approach.
+> **Note**: As of the latest version, the regression mode has been **removed**. This guide is kept for historical reference only. All detection now uses the segmentation-based approach.
+
+This guide explains the transition from the old regression-based corner detection to the current segmentation-based approach.
 
 ## What Changed?
 
@@ -14,34 +16,27 @@ This guide explains how to migrate from the old regression-based corner detectio
 - **Post-processing**: OpenCV contour extraction → 4 corners
 - **Benefits**: More robust, better handles difficult cases, interpretable
 
-## Backward Compatibility
+## API Usage
 
-✅ **Good news**: The new system is **fully backward compatible**.
-
-### No Changes Needed
-
-If you're using the high-level API, **no changes are required**:
+The API has been simplified:
 
 ```python
-# This code still works exactly the same
 from paper_detection import PaperDetector
 
-detector = PaperDetector()  # Now uses segmentation by default
+# Create detector (uses segmentation)
+detector = PaperDetector()
 corners = detector.detect(image)
 ```
 
-### Explicit Mode Selection
-
-You can explicitly choose the detection mode:
+**Previous code that used `detection_mode` parameter needs to be updated:**
 
 ```python
-from paper_detection import PaperDetector
+# Old code (no longer supported)
+detector = PaperDetector(detection_mode="segmentation")
+detector = PaperDetector(detection_mode="regression")
 
-# New segmentation mode (recommended)
-detector_seg = PaperDetector(detection_mode="segmentation")
-
-# Old regression mode (legacy)
-detector_reg = PaperDetector(detection_mode="regression")
+# New code
+detector = PaperDetector()
 ```
 
 ## Training the New Model

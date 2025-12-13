@@ -152,17 +152,17 @@ class SegmentationConfig:
     # Data paths
     IMAGES_DIR: Path = Path("paper_detection/data/images")
     CORNERS_FILE: Path = Path("paper_detection/data/corners.json")
-    MODEL_PATH: Path = Path("paper_detection/models/paper_model_unet.pth")
+    MODEL_PATH: Path = Path("paper_detection/model/checkpoints/paper_model_unet.pth")
 ```
 
 ### Training Output
 
 The training script produces:
 
-1. **Model checkpoint**: `paper_detection/models/paper_model_unet.pth`
-2. **Training history**: `paper_detection/models/training_history.json`
+1. **Model checkpoint**: `paper_detection/model/checkpoints/paper_model_unet.pth`
+2. **Training history**: `paper_detection/model/checkpoints/training_history.json`
 3. **Visualizations**: `temp/model_debug/val_predictions/`
-4. **Checkpoints**: `paper_detection/models/model_checkpoints/` (every 50 epochs)
+4. **Checkpoints**: `paper_detection/model/checkpoints/model_checkpoints/` (every 50 epochs)
 
 ### Metrics Tracked
 
@@ -285,7 +285,7 @@ pytest paper_detection/model/tests/ --cov=paper_detection.model
 ### Integration Tests
 
 Integration tests require:
-- Trained model at `paper_detection/models/paper_model_unet.pth`
+- Trained model at `paper_detection/model/checkpoints/paper_model_unet.pth`
 - Test images in `paper_detection/data/images/`
 - Ground truth in `paper_detection/data/corners.json`
 
@@ -362,7 +362,7 @@ paper_detection/model/
 ### Issue: Model not found
 
 ```
-FileNotFoundError: Model not found: paper_detection/models/paper_model_unet.pth
+FileNotFoundError: Model not found: paper_detection/model/checkpoints/paper_model_unet.pth
 ```
 
 **Solution**: Train the model first:

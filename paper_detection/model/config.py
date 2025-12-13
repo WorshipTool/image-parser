@@ -35,12 +35,12 @@ class ModelConfig:
     DATASET_FILE: Path = Path("paper_detection/data/dataset.json")
 
     # Output paths
-    OUTPUT_DIR: Path = Path("paper_detection/models")
-    CHECKPOINT_DIR: Path = Path("paper_detection/models/segmentation_checkpoints")
+    OUTPUT_DIR: Path = Path("paper_detection/model/checkpoints")
+    CHECKPOINT_DIR: Path = Path("paper_detection/model/checkpoints/training")
     DEBUG_DIR: Path = Path("temp/segmentation_debug")
 
     # Model save path
-    MODEL_PATH: Path = Path("paper_detection/models/paper_segmentation_unet.pth")
+    MODEL_PATH: Path = Path("paper_detection/model/checkpoints/paper_segmentation_unet.pth")
 
     # Data split
     TRAIN_SPLIT: float = 0.8
@@ -54,8 +54,8 @@ class ModelConfig:
     MIN_CONTOUR_AREA: int = 1000  # Minimum area for valid contour
     APPROX_EPSILON: float = 0.02  # Polygon approximation parameter
 
-    # Augmentation parameters
-    AUG_BRIGHTNESS_CONTRAST_P: float = 0.5
+    # AugmeGntation parameters
+    AUG_BRIHTNESS_CONTRAST_P: float = 0.5
     AUG_HUE_SAT_P: float = 0.3
     AUG_BLUR_P: float = 0.3
     AUG_NOISE_P: float = 0.3

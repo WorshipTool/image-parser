@@ -22,13 +22,24 @@ def orient_by_text(image: np.ndarray) -> Optional[Tuple[np.ndarray, int, float]]
     import cv2
     from pytesseract import Output
 
-    PSM = 6                
+    PSM = 6
     GOOD_CONF = 60.0
     GOOD_LEN = 2
-    GOOD_WEIGHT = 2.5      
+    GOOD_WEIGHT = 2.5
+    MAX_SIDE = 1000   # <-- klíčové pro rychlost
+
+    def downscale(img: np.ndarray) -> np.ndarray:
+        h, w = img.shape[:2]
+        scale = min(1.0, MAX_SIDE / max(h, w))
+        if scale < 1.0:
+            img = cv2.resize(img, (int(w * scale), int(h * scale)))
+        return img
 
     def score_for(img_bgr: np.ndarray) -> float:
-        rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        # ↓↓↓ downscale jen pro OCR
+        img_small = downscale(img_bgr)
+
+        rgb = cv2.cvtColor(img_small, cv2.COLOR_BGR2RGB)
         data = pytesseract.image_to_data(
             rgb,
             output_type=Output.DICT,

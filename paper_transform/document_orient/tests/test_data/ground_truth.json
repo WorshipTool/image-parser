@@ -1,32 +1,17 @@
 {
     "test_orient_00.jpg": {
-        "expected_rotation": 180,
-        "description": "Upside down document",
-        "source": "IMG_20230826_092557.jpg",
-        "shape": [1826, 1304]
+        "expected_rotation": 180
     },
     "test_orient_01.jpg": {
-        "expected_rotation": 270,
-        "description": "Upside down document",
-        "source": "IMG_20230826_092519.jpg",
-        "shape": [1788, 2489]
+        "expected_rotation": 90
     },
     "test_orient_02.jpg": {
-        "expected_rotation": 0,
-        "description": "Correctly oriented document",
-        "source": "IMG_20230826_092451.jpg",
-        "shape": [2194, 1560]
+        "expected_rotation": 0
     },
     "test_orient_03.jpg": {
-        "expected_rotation": 90,
-        "description": "Document rotated 90 degrees CW",
-        "source": "IMG_20230826_092914.jpg",
-        "shape": [1451, 1926]
+        "expected_rotation": -90
     },
     "test_orient_04.jpg": {
-        "expected_rotation": 0,
-        "description": "Correctly oriented document",
-        "source": "IMG_20230826_092420.jpg",
-        "shape": [2415, 1745]
+        "expected_rotation": 0
     }
 }

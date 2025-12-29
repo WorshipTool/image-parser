@@ -49,8 +49,8 @@ class TestGroundTruthOrientation:
                 images[image_name] = {
                     "image": image,
                     "expected_rotation": annotations["expected_rotation"],
-                    "description": annotations["description"],
-                    "source": annotations["source"]
+                    "description": annotations.get("description", ""),
+                    "source": annotations.get("source", "")
                 }
 
         if not images:
@@ -188,9 +188,9 @@ class TestGroundTruthOrientation:
         print(f"Results: {correct}/{total} correct ({correct/total*100:.1f}%)")
         print("=" * 70)
 
-        # We expect at least 60% accuracy with OCR
+        # We expect at least 90% accuracy with OCR (high threshold to catch errors)
         accuracy = correct / total if total > 0 else 0
-        assert accuracy >= 0.6, f"Orientation accuracy too low: {accuracy:.1%}"
+        assert accuracy >= 0.9, f"Orientation accuracy too low: {accuracy:.1%}"
 
     def test_orientation_with_geometric_fallback(self, test_images):
         """

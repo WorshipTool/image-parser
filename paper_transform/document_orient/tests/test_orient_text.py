@@ -5,7 +5,7 @@ Unit tests for text orientation module
 import pytest
 import numpy as np
 import cv2
-from paper_transform.document_orient.orient_text import (
+from paper_transform.document_orient.orient_by_text import (
     _rotate_image,
     _calculate_text_score,
     orient_by_text,

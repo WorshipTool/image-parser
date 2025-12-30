@@ -162,69 +162,90 @@ def get_sheet_components_from_image(
     return [oriented]
 
 
-def get_sheet_components_batch(
-    image_paths: list,
-    debug: bool = False,
-    output_dir: Optional[Path] = None
-) -> list:
-    """
-    Process multiple images in batch.
-
-    Args:
-        image_paths: List of image file paths
-        debug: If True, print debug information for each image
-        output_dir: Optional directory to save processed images
-
-    Returns:
-        List of all sheet images from all input images
-
-    Example:
-        >>> paths = ["img1.jpg", "img2.jpg", "img3.jpg"]
-        >>> all_sheets = get_sheet_components_batch(paths, output_dir=Path("output"))
-        >>> print(f"Extracted {len(all_sheets)} sheets from {len(paths)} images")
-    """
-    all_sheets = []
-
-    for i, image_path in enumerate(image_paths):
-        if debug:
-            print(f"\n\nProcessing {i+1}/{len(image_paths)}: {Path(image_path).name}")
-
-        sheets = get_sheet_components_from_image(image_path, debug=debug)
-        all_sheets.extend(sheets)
-
-        # Save output if directory provided
-        if output_dir and sheets:
-            output_dir = Path(output_dir)
-            output_dir.mkdir(parents=True, exist_ok=True)
-
-            for j, sheet in enumerate(sheets):
-                output_filename = Path(image_path).stem + f"_sheet{j}.jpg"
-                output_path = output_dir / output_filename
-                cv2.imwrite(str(output_path), sheet)
-
-                if debug:
-                    print(f"Saved to: {output_path}")
-
-    return all_sheets
-
 
 if __name__ == "__main__":
     """
-    Example usage and testing
+    Command line interface for parser
     """
     import sys
+    import argparse
 
-    if len(sys.argv) < 2:
-        print("Usage: python parse.py <image_path> [--debug]")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="Extract sheet music from images using intelligent detection",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Single image with debug info
+  python parser/parse.py image.jpg --debug
 
-    image_path = sys.argv[1]
-    debug = "--debug" in sys.argv
+  # Multiple images
+  python parser/parse.py img1.jpg img2.jpg img3.jpg
 
-    sheets = get_sheet_components_from_image(image_path, debug=debug)
+  # Save to custom directory
+  python parser/parse.py *.jpg -o output/
 
-    # Save output
-    output_path = Path(image_path).stem + "_processed.jpg"
-    cv2.imwrite(output_path, sheets[0])
-    print(f"\n✓ Extracted {len(sheets)} sheet(s)")
-    print(f"  Saved to: {output_path}")
+  # Process all JPGs in directory
+  python parser/parse.py input/*.jpg -o output/ --debug
+        """
+    )
+
+    parser.add_argument(
+        'images',
+        nargs='+',
+        help='Input image path(s) - supports glob patterns'
+    )
+    parser.add_argument(
+        '-o', '--output',
+        type=str,
+        default='.',
+        help='Output directory (default: current directory)'
+    )
+    parser.add_argument(
+        '-d', '--debug',
+        action='store_true',
+        help='Print debug information'
+    )
+
+    args = parser.parse_args()
+
+    # Create output directory
+    output_dir = Path(args.output)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Process images
+    total_sheets = 0
+    for image_path in args.images:
+        image_path = Path(image_path)
+
+        if not image_path.exists():
+            print(f"✗ File not found: {image_path}")
+            continue
+
+        if args.debug:
+            print(f"\n{'='*60}")
+            print(f"Processing: {image_path.name}")
+            print('='*60)
+
+        sheets = get_sheet_components_from_image(str(image_path), debug=args.debug)
+
+        # Save sheets
+        for i, sheet in enumerate(sheets):
+            if len(sheets) == 1:
+                output_filename = f"{image_path.stem}_sheet.jpg"
+            else:
+                output_filename = f"{image_path.stem}_sheet{i+1}.jpg"
+
+            output_path = output_dir / output_filename
+            cv2.imwrite(str(output_path), sheet)
+
+            if args.debug:
+                print(f"✓ Saved: {output_path}")
+
+        total_sheets += len(sheets)
+
+    # Summary
+    print(f"\n{'='*60}")
+    print(f"✓ Processed {len(args.images)} image(s)")
+    print(f"✓ Extracted {total_sheets} sheet(s)")
+    print(f"✓ Output directory: {output_dir.absolute()}")
+    print('='*60)

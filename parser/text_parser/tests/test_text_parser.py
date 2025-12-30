@@ -15,6 +15,63 @@ parser_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(parser_dir))
 
 from text_parser import read_and_parse_image, read_title_only
+from text_parser.ocr import read as ocr_read
+
+
+def draw_word_boxes(image_bgr: np.ndarray, word_data: list) -> np.ndarray:
+    """
+    Draw bounding boxes around detected words on image
+
+    Args:
+        image_bgr: Input image (BGR format)
+        word_data: List of ReadWordData objects from OCR
+
+    Returns:
+        Image with drawn bounding boxes
+    """
+    output = image_bgr.copy()
+
+    for word in word_data:
+        bounds = word.bounds
+        x = int(bounds.left)
+        y = int(bounds.top)
+        w = int(bounds.width)
+        h = int(bounds.height)
+
+        # Draw rectangle around word
+        cv2.rectangle(output, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+        # Draw text label with confidence
+        label = f"{word.text} ({word.confidence:.0f}%)"
+        font_scale = 0.5
+        thickness = 1
+
+        # Get text size for background
+        (text_width, text_height), baseline = cv2.getTextSize(
+            label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness
+        )
+
+        # Draw background for text
+        cv2.rectangle(
+            output,
+            (x, y - text_height - 5),
+            (x + text_width, y),
+            (0, 255, 0),
+            -1
+        )
+
+        # Draw text
+        cv2.putText(
+            output,
+            label,
+            (x, y - 5),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            font_scale,
+            (0, 0, 0),
+            thickness
+        )
+
+    return output
 
 
 class TestTextParser(unittest.TestCase):
@@ -229,6 +286,17 @@ class TestTextParserWithAllImages(unittest.TestCase):
                     f.write("="*80 + "\n\n")
                     f.write(result['data'])
                 print(f"✓ Saved text to: {text_output_path}")
+
+                # Generate visualization with word bounding boxes
+                image_bgr = cv2.imread(str(img_path))
+                word_data = ocr_read(image_bgr)
+                annotated_image = draw_word_boxes(image_bgr, word_data)
+
+                # Save annotated image
+                annotated_output_name = f"annotated_{img_path.stem}.jpg"
+                annotated_output_path = self.temp_dir / annotated_output_name
+                cv2.imwrite(str(annotated_output_path), annotated_image)
+                print(f"✓ Saved annotated image to: {annotated_output_path}")
 
                 all_results.append(result)
             else:

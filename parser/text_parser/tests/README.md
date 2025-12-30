@@ -37,9 +37,15 @@ Tests automatically save extracted data to `temp/text_parser_output/`:
 **Individual Results:**
 - `result_<image_name>.json` - Full result with title, data, and image path
 - `result_<image_name>.txt` - Human-readable formatted text output
+- `annotated_<image_name>.jpg` - Image with OCR word bounding boxes visualized
 
 **Combined Results:**
 - `all_results.json` - All results combined in single JSON array
+
+**Visualization:**
+Annotated images show green bounding boxes around each detected word with labels showing:
+- Detected text
+- OCR confidence percentage
 
 All output files use UTF-8 encoding to preserve Czech/Slovak characters.
 
@@ -53,5 +59,8 @@ All tests verify:
 - ✓ Both path and array inputs work
 - ✓ Title consistency between functions
 - ✓ Results are saved to temp directory
+- ✓ Word bounding boxes are visualized in annotated images
 
 Total: 11 tests
+
+The verbose test also generates annotated images showing OCR word detection with bounding boxes and confidence scores for visual inspection and debugging.

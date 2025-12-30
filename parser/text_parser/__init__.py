@@ -102,7 +102,9 @@ def read_and_parse_image(
 
     except Exception as e:
         if debug:
+            import traceback
             print(f"✗ Formatting failed: {e}")
+            traceback.print_exc()
         return None
 
 

@@ -1,5 +1,8 @@
 import re
 import math
+from dataclasses import dataclass
+from statistics import median
+from typing import List
 
 from .sheet import Sheet
 from ..ocr.read_word_data import ReadWordData
@@ -186,37 +189,69 @@ def sections_to_formatted_string(sections: list[Section]) -> str:
         
     return  "\n\n".join(sectionStrings)
 
-def read_word_list_to_lines(wordData: list[ReadWordData]) -> list[Line]:
-    outputLines : list[Line] = []
 
-    for word in wordData:
-        text = word.text
-        chordPossibility = is_it_chord(text) * 1
+# předpoklad: ReadWordData má .text a .bounds (left, top, width, height)
 
+def read_word_list_to_lines(wordData: List[ReadWordData]) -> List[Line]:
+    if not wordData:
+        return []
 
-        center = [word.bounds.left + word.bounds.width/2,
-                  word.bounds.top + word.bounds.height/2]
+    # 1) seřadit shora dolů (a lehce zleva, ať je to deterministické)
+    words = sorted(
+        wordData,
+        key=lambda w: (w.bounds.top + w.bounds.height / 2, w.bounds.left)
+    )
 
-        # Find line with similar Y position
-        foundLineIndex = -1
-        for index, line in enumerate(outputLines):
-            centerDistance = abs(line.centerY-center[1])
-            if(centerDistance <= word.bounds.height/2):
-                foundLineIndex = index
-                break
+    # 2) robustní "typická výška" (mix akordů+textu)
+    heights = [w.bounds.height for w in words]
+    h_med = median(heights)
+    # tolerance: cca půl řádku; upravitelné
+    y_tol = max(6.0, 0.55 * h_med)
 
+    lines: List[Line] = []
 
-        if(foundLineIndex == -1):
-            outputLines.append(Line(center[1], chordPossibility, [word]))
+    def word_center_y(w) -> float:
+        return w.bounds.top + w.bounds.height / 2
+
+    def word_center_x(w) -> float:
+        return w.bounds.left + w.bounds.width / 2
+
+    for w in words:
+        cy = word_center_y(w)
+        chordPoss = float(is_it_chord(w.text))
+
+        # 3) najdi nejbližší řádek podle Y (ne první co projde)
+        best_i = -1
+        best_dist = 1e9
+        for i, line in enumerate(lines):
+            dist = abs(line.centerY - cy)
+            if dist < best_dist:
+                best_dist = dist
+                best_i = i
+
+        if best_i == -1 or best_dist > y_tol:
+            # nový řádek
+            lines.append(Line(cy, chordPoss, [w]))
         else:
-            # Update chord possibility average
-            i = foundLineIndex
-            l = len(outputLines[i].words)
-            outputLines[i].chordLinePossibility = (outputLines[i].chordLinePossibility*l + chordPossibility)/(l+1)
-            # Add word to line
-            outputLines[i].words.append(word)
-    return outputLines
+            line = lines[best_i]
 
+            # 4) update centerY (inkrementální průměr)
+            n = len(line.words)
+            line.centerY = (line.centerY * n + cy) / (n + 1)
+
+            # update chord likelihood průměrem
+            line.chordLinePossibility = (line.chordLinePossibility * n + chordPoss) / (n + 1)
+
+            line.words.append(w)
+
+    # 5) seřadit slova v řádcích zleva doprava
+    for line in lines:
+        line.words.sort(key=lambda w: w.bounds.left)
+
+    # 6) a ještě seřadit řádky podle Y
+    lines.sort(key=lambda l: l.centerY)
+
+    return lines
 def get_title(titleData: list[ReadWordData]) -> str:
     lines = read_word_list_to_lines(titleData)
     sections = split_lines_to_sections(lines)
@@ -229,6 +264,12 @@ def format(dataData:list[ReadWordData], inputImagePath: str, cropedImageData) ->
 
 
     lines = read_word_list_to_lines(dataData)
+
+    # Print lines
+    for line in lines:
+        print(f"[{line.avgConfidence, line.chordLinePossibility}] {[word.text for word in line.words]}")
+
+
     sections = split_lines_to_sections(lines)
     data = sections_to_formatted_string(sections)
     

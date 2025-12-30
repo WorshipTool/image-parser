@@ -345,13 +345,14 @@ class CornerEditor:
 
     def auto_detect_corners(self):
         """Auto-detect corners using PaperDetector"""
-        detected = self.detector.detect(self.image)
-        if detected is not None:
-            self.corners = detected.copy()
+        result = self.detector.detect(self.image)
+        if result['shouldCrop'] and result['corners'] is not None:
+            self.corners = result['corners'].copy()
             self.corners_modified = True
             print(f"✓ Auto-detected: {self.current_image_name}")
         else:
-            print(f"✗ Detection failed: {self.current_image_name}")
+            reason = result['debug']['heatmap_analysis'].get('rejection_reason', 'unknown')
+            print(f"✗ Detection failed: {self.current_image_name} ({reason})")
 
     def move_selected_corner(self, dx, dy):
         """Move the selected corner by dx, dy pixels"""

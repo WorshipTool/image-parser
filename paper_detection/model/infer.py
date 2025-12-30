@@ -11,6 +11,7 @@ from typing import Optional, Tuple
 from paper_detection.model.config import ModelConfig
 from paper_detection.model.model import UNet
 from paper_detection.model.postprocess import mask_to_corners, scale_corners
+from paper_detection.model.heatmap_analysis import analyze_heatmap, validate_corners
 
 
 class SegmentationInference:
@@ -131,16 +132,19 @@ class SegmentationInference:
 
         return mask_prob, mask_resized
 
-    def detect_corners(self, image_bgr: np.ndarray, debug: bool = False) -> Optional[np.ndarray]:
+    def detect_paper_corners(self, image_bgr: np.ndarray, debug: bool = False) -> dict:
         """
-        Detect paper corners from image
+        Detect paper corners with shouldCrop decision
 
         Args:
             image_bgr: Input image in BGR format [H, W, 3]
             debug: If True, print debug information
 
         Returns:
-            Corners [4, 2] in original image coordinates or None if failed
+            dict with:
+                - shouldCrop: bool - whether paper is present and should be cropped
+                - corners: Optional[np.ndarray] - [4, 2] corners or None
+                - debug: dict - detailed metrics and analysis
         """
         # Get original size
         h, w = image_bgr.shape[:2]
@@ -149,7 +153,28 @@ class SegmentationInference:
         # Predict mask (at model resolution)
         mask_prob, _ = self.predict_mask(image_bgr)
 
-        # Extract corners at model resolution
+        # Step 1: Heatmap gate (fast rejection before expensive corner detection)
+        heatmap_result = analyze_heatmap(
+            mask_prob,
+            threshold=self.config.MASK_THRESHOLD,
+            debug=debug
+        )
+
+        debug_info = {
+            'heatmap_analysis': heatmap_result,
+            'corner_detection': None,
+            'corner_validation': None,
+        }
+
+        # Early exit if heatmap gate rejects
+        if not heatmap_result['should_crop']:
+            return {
+                'shouldCrop': False,
+                'corners': None,
+                'debug': debug_info
+            }
+
+        # Step 2: Extract corners at model resolution (expensive operation)
         corners = mask_to_corners(
             mask_prob,
             threshold=self.config.MASK_THRESHOLD,
@@ -158,14 +183,41 @@ class SegmentationInference:
             debug=debug
         )
 
+        debug_info['corner_detection'] = {
+            'found_corners': corners is not None,
+            'num_corners': len(corners) if corners is not None else 0
+        }
+
+        # If corner detection failed
         if corners is None:
-            return None
+            debug_info['corner_detection']['failure_reason'] = 'no_corners_found'
+            return {
+                'shouldCrop': False,
+                'corners': None,
+                'debug': debug_info
+            }
 
         # Scale corners from model resolution to original resolution
         model_size = (self.config.IMAGE_SIZE, self.config.IMAGE_SIZE)
         corners_scaled = scale_corners(corners, model_size, original_size)
 
-        return corners_scaled
+        # Step 3: Validate corners
+        validation_result = validate_corners(
+            corners_scaled,
+            image_shape=(h, w),
+            debug=debug
+        )
+
+        debug_info['corner_validation'] = validation_result
+
+        # Final decision
+        should_crop = validation_result['is_valid']
+
+        return {
+            'shouldCrop': should_crop,
+            'corners': corners_scaled if should_crop else None,
+            'debug': debug_info
+        }
 
     def visualize_detection(
         self,

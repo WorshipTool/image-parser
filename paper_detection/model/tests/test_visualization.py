@@ -81,7 +81,8 @@ class TestModelVisualization:
 
             # Get predictions
             mask_prob, mask_resized = inference.predict_mask(image)
-            corners = inference.detect_corners(image, debug=False)
+            result = inference.detect_paper_corners(image, debug=False)
+            corners = result['corners']
 
             # Create visualizations
             self._save_heatmap(image, mask_prob, mask_resized, corners, image_path.name, output_dir)
@@ -213,14 +214,15 @@ class TestModelVisualization:
                 continue
 
             mask_prob, _ = inference.predict_mask(image)
-            corners = inference.detect_corners(image, debug=False)
+            result = inference.detect_paper_corners(image, debug=False)
 
             # Collect stats
             max_conf = mask_prob.max()
             mean_conf = mask_prob.mean()
             confidences.append((max_conf, mean_conf))
 
-            if corners is not None:
+            if result['shouldCrop'] and result['corners'] is not None:
+                corners = result['corners']
                 detection_success += 1
 
         # Print summary

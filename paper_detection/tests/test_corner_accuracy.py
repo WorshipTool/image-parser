@@ -234,9 +234,11 @@ class TestCornerAccuracy:
 
         # Detect corners with default settings
         detector = PaperDetector()
-        detected_corners = detector.detect(image)
+        result = detector.detect(image)
 
-        assert detected_corners is not None, f"Paper not detected in {image_name}"
+        assert result['shouldCrop'], f"Paper not detected in {image_name}"
+        detected_corners = result['corners']
+        assert detected_corners is not None, f"Corners are None for {image_name}"
 
         # Try all 4 possible rotations of detected corners to find best match
         best_rotation = 0

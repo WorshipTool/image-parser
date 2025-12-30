@@ -123,12 +123,12 @@ class TestPaperDetectorIntegration:
 
         try:
             detector = PaperDetector()
-            corners = detector.detect(image)
+            result = detector.detect(image)
 
             # May or may not find corners depending on model training
             # Just check it doesn't crash
-            if corners is not None:
-                assert corners.shape == (4, 2)
+            if result['shouldCrop'] and result['corners'] is not None:
+                assert result['corners'].shape == (4, 2)
 
         except FileNotFoundError:
             pytest.skip("Segmentation model not trained yet")
@@ -186,11 +186,13 @@ class TestEndToEnd:
 
             # Detect corners
             detector = PaperDetector()
-            pred_corners = detector.detect(image)
+            result = detector.detect(image)
 
             # Check if detection succeeded
-            if pred_corners is None:
+            if not result['shouldCrop'] or result['corners'] is None:
                 pytest.skip("Detection failed on test image")
+
+            pred_corners = result['corners']
 
             # Calculate error
             error, _ = min_corner_matching_error(pred_corners, gt_corners_px)

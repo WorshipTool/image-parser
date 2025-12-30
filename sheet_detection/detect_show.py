@@ -2,15 +2,15 @@ import os
 import sys
 import cv2 as cv
 
-# Add parent directory to path to import song_detection as module
+# Add parent directory to path to import sheet_detection as module
 current_directory = os.path.dirname(os.path.abspath(__file__))
 parent_directory = os.path.dirname(current_directory)
 sys.path.insert(0, parent_directory)
 
-import song_detection
+import sheet_detection
 
 model_path = os.path.join(parent_directory, "yolo8best.pt")
-song_detection.prepare_model(model_path)
+sheet_detection.prepare_model(model_path)
 
 # load imagepath from argument
 imagePath = ""
@@ -21,11 +21,11 @@ else:
     exit(0)
 
 # Detect
-results = song_detection.detect_simple(imagePath, show=False)
+results = sheet_detection.detect_simple(imagePath, show=False)
 
 inputImage = cv.imread(imagePath)
 # Draw
-song_detection.renderResults(inputImage, results, strokeWidth=3, fontSize=2)
+sheet_detection.renderResults(inputImage, results, strokeWidth=3, fontSize=2)
 
 # Show
 cv.imshow("Result", inputImage)

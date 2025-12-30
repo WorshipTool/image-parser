@@ -1,6 +1,6 @@
-# Song Detection Module
+# Sheet Detection Module
 
-YOLOv8-based song detection for sheet music images.
+YOLOv8-based sheet detection for sheet music images.
 
 ## Features
 
@@ -12,7 +12,7 @@ YOLOv8-based song detection for sheet music images.
 
 1. **Download model**:
    ```bash
-   python song_detection/prepare.py
+   python sheet_detection/prepare.py
    ```
    This downloads `yolo8best.pt` (160MB) to project root.
 
@@ -27,13 +27,13 @@ YOLOv8-based song detection for sheet music images.
 
 **Simple detection** (no progress tracking):
 ```python
-import song_detection
+import sheet_detection
 
 # Prepare model
-song_detection.prepare_model("yolo8best.pt")
+sheet_detection.prepare_model("yolo8best.pt")
 
-# Detect songs in image (simple version)
-results = song_detection.detect_simple("image.jpg", show=False)
+# Detect sheets in image (simple version)
+results = sheet_detection.detect_simple("image.jpg", show=False)
 
 # Process results
 for song_group in results:
@@ -48,7 +48,7 @@ for song_group in results:
 **Detection with progress tracking**:
 ```python
 # detect() is a generator that yields progress (0-100)
-detectGen = song_detection.detect("image.jpg", show=False)
+detectGen = sheet_detection.detect("image.jpg", show=False)
 
 while True:
     try:
@@ -63,12 +63,12 @@ while True:
 
 **Show detections**:
 ```bash
-python song_detection/detect_show.py image.jpg
+python sheet_detection/detect_show.py image.jpg
 ```
 
 **Real-time camera detection**:
 ```bash
-python song_detection/realtime_detect.py
+python sheet_detection/realtime_detect.py
 ```
 
 ## Classes
@@ -139,7 +139,7 @@ names:
 
 ```bash
 # Train from scratch (or continue from existing model)
-./song_detection/train_detect.sh /path/to/dataset.yaml [optional_model.pt]
+./sheet_detection/train_detect.sh /path/to/dataset.yaml [optional_model.pt]
 
 # This runs:
 # yolo task=detect mode=train model=yolov8n.pt data=dataset.yaml \
@@ -157,7 +157,7 @@ names:
 Reduce model size using pruning:
 
 ```bash
-python song_detection/prune.py input_model.pt output_model.pt
+python sheet_detection/prune.py input_model.pt output_model.pt
 
 # Applies 80% sparsity to reduce model size
 ```

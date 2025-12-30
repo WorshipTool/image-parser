@@ -3,11 +3,11 @@ import sys
 
 # Add parent directory to path
 current_directory = os.path.dirname(os.path.abspath(__file__))
-song_detection_dir = os.path.dirname(current_directory)
-parent_directory = os.path.dirname(song_detection_dir)
+sheet_detection_dir = os.path.dirname(current_directory)
+parent_directory = os.path.dirname(sheet_detection_dir)
 sys.path.insert(0, parent_directory)
 
-from song_detection import detect_simple, prepare_model
+from sheet_detection import detect_simple, prepare_model
 
 model_path = os.path.join(parent_directory, "yolo8best.pt")
 prepare_model(model_path)

@@ -1,4 +1,4 @@
-from song_detection.custom_detect import CustomDetect
+from sheet_detection.custom_detect import CustomDetect
 
 class SongDetectGroup:
     def __init__(self, title: CustomDetect, data: CustomDetect, sheet: CustomDetect):

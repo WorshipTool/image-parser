@@ -3,7 +3,7 @@ import os
 import sys
 from typing import Generator
 
-import song_detection
+import sheet_detection
 import image_reader
 import sheet_formatter
 import common
@@ -14,7 +14,7 @@ import ai
 # Prepare model
 current_directory = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(current_directory, "yolo8best.pt")
-song_detection.prepare_model(model_path)
+sheet_detection.prepare_model(model_path)
 
 # Prepare paths
 defaultOutputPath = os.path.join("tmp", "op.json")
@@ -43,7 +43,7 @@ def parse_images(inputImages: list[str], outputPath: str = None) -> Generator[in
             return math.floor(f)
 
         # Detect with generator stream process
-        detectGen = song_detection.detect(SAMPLE_IMAGE_PATH, show=False)
+        detectGen = sheet_detection.detect(SAMPLE_IMAGE_PATH, show=False)
 
         
         detectedResults = None

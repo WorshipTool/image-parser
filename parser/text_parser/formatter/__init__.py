@@ -223,9 +223,9 @@ def get_title(titleData: list[ReadWordData]) -> str:
     title, sections = get_title_from_sections(sections)
     return title
 
-def format(titleData: list[ReadWordData], dataData:list[ReadWordData], inputImagePath: str, cropedImageData) -> Sheet:
+def format(dataData:list[ReadWordData], inputImagePath: str, cropedImageData) -> Sheet:
 
-    title = get_title(titleData)
+    title = get_title(dataData)
 
 
     lines = read_word_list_to_lines(dataData)

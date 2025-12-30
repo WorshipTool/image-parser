@@ -20,7 +20,7 @@ _image_parser_dir = _parser_dir.parent
 sys.path.insert(0, str(_image_parser_dir))
 
 from .ocr import read as ocr_read
-from .formatter import format as format_sheet, get_title
+from .formatter import format as format_sheet
 
 
 def read_and_parse_image(
@@ -92,7 +92,7 @@ def read_and_parse_image(
     try:
         # Use the same data for both title and content parsing
         # formatter.format() will extract title from first lines
-        sheet = format_sheet(word_data, word_data, image_path, image_bgr)
+        sheet = format_sheet( word_data, image_path, image_bgr)
 
         if debug:
             print(f"  ✓ Parsed title: {sheet.title}")
@@ -106,45 +106,4 @@ def read_and_parse_image(
         return None
 
 
-def read_title_only(
-    image: Union[str, Path, np.ndarray],
-    debug: bool = False
-) -> Optional[str]:
-    """
-    Read only the title from image.
 
-    Args:
-        image: Input image path or numpy array (BGR format)
-        debug: Print debug information
-
-    Returns:
-        str: Detected title or None if failed
-    """
-    # Load image if path provided
-    if isinstance(image, (str, Path)):
-        image_path = str(Path(image))
-        image_bgr = cv2.imread(image_path)
-        if image_bgr is None:
-            if debug:
-                print(f"✗ Failed to load image: {image_path}")
-            return None
-    else:
-        image_bgr = image
-        if image_bgr is None or image_bgr.size == 0:
-            if debug:
-                print("✗ Invalid image array")
-            return None
-
-    # Run OCR
-    try:
-        word_data = ocr_read(image_bgr)
-        if not word_data:
-            return None
-
-        title = get_title(word_data)
-        return title
-
-    except Exception as e:
-        if debug:
-            print(f"✗ Title extraction failed: {e}")
-        return None

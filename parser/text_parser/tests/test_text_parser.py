@@ -14,7 +14,7 @@ import json
 parser_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(parser_dir))
 
-from text_parser import read_and_parse_image, read_title_only
+from text_parser import read_and_parse_image
 from text_parser.ocr import read as ocr_read
 
 
@@ -47,7 +47,7 @@ def draw_word_boxes(image_bgr: np.ndarray, word_data: list) -> np.ndarray:
         thickness = 1
 
         # Get text size for background
-        (text_width, text_height), baseline = cv2.getTextSize(
+        (text_width, text_height), _ = cv2.getTextSize(
             label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness
         )
 
@@ -136,28 +136,6 @@ class TestTextParser(unittest.TestCase):
         self.assertTrue(len(result['title']) > 0)
         self.assertTrue(len(result['data']) > 0)
 
-    def test_read_title_only(self):
-        """Test read_title_only function"""
-        for img_path in self.test_images:
-            with self.subTest(image=img_path.name):
-                title = read_title_only(str(img_path), debug=False)
-
-                # Title should be extracted
-                self.assertIsNotNone(title, f"Failed to extract title from {img_path.name}")
-                self.assertIsInstance(title, str)
-                self.assertTrue(len(title) > 0, "Title is empty")
-
-    def test_read_title_only_with_array(self):
-        """Test read_title_only with numpy array"""
-        img_path = self.test_images[0]
-        image_bgr = cv2.imread(str(img_path))
-
-        title = read_title_only(image_bgr, debug=False)
-
-        self.assertIsNotNone(title)
-        self.assertIsInstance(title, str)
-        self.assertTrue(len(title) > 0)
-
     def test_chord_detection(self):
         """Test that chords are detected in formatted output"""
         # Use first test image
@@ -200,23 +178,6 @@ class TestTextParser(unittest.TestCase):
         result = read_and_parse_image(None, debug=False)
         self.assertIsNone(result, "Should return None for None image")
 
-    def test_title_consistency(self):
-        """Test that title from read_title_only matches read_and_parse_image"""
-        img_path = self.test_images[0]
-
-        full_result = read_and_parse_image(str(img_path), debug=False)
-        title_only = read_title_only(str(img_path), debug=False)
-
-        self.assertIsNotNone(full_result)
-        self.assertIsNotNone(title_only)
-
-        # Titles should match (allowing for whitespace differences)
-        self.assertEqual(
-            full_result['title'].strip(),
-            title_only.strip(),
-            "Title from both functions should match"
-        )
-
     def test_debug_output(self):
         """Test that debug mode doesn't break functionality"""
         img_path = self.test_images[0]
@@ -224,9 +185,6 @@ class TestTextParser(unittest.TestCase):
         # Should work with debug=True
         result = read_and_parse_image(str(img_path), debug=True)
         self.assertIsNotNone(result)
-
-        title = read_title_only(str(img_path), debug=True)
-        self.assertIsNotNone(title)
 
 
 class TestTextParserWithAllImages(unittest.TestCase):

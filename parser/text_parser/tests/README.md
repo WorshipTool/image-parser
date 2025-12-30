@@ -5,7 +5,7 @@ Test suite for the `text_parser` module - OCR reading and sheet formatting.
 ## Test Coverage
 
 - **OCR Reading**: Tests Pytesseract text extraction from cropped sheet images
-- **Title Extraction**: Tests both `read_and_parse_image()` and `read_title_only()`
+- **Title Extraction**: Tests title extraction via `read_and_parse_image()`
 - **Chord Detection**: Verifies chord formatting in output
 - **Section Detection**: Verifies section grouping (V1, V2, Chorus, etc.)
 - **Error Handling**: Tests invalid paths and arrays
@@ -57,10 +57,9 @@ All tests verify:
 - ✓ Data is formatted with chords and sections
 - ✓ Functions handle errors gracefully
 - ✓ Both path and array inputs work
-- ✓ Title consistency between functions
 - ✓ Results are saved to temp directory
 - ✓ Word bounding boxes are visualized in annotated images
 
-Total: 11 tests
+Total: 8 tests
 
 The verbose test also generates annotated images showing OCR word detection with bounding boxes and confidence scores for visual inspection and debugging.

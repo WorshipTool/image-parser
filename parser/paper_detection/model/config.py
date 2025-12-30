@@ -6,6 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+# Determine paths relative to this file
+_CONFIG_DIR = Path(__file__).parent
+_MODULE_ROOT = _CONFIG_DIR.parent  # paper_detection directory
+
+
 @dataclass
 class ModelConfig:
     """Configuration for segmentation model training and inference"""
@@ -29,18 +34,18 @@ class ModelConfig:
     BCE_WEIGHT: float = 0.5
     DICE_WEIGHT: float = 0.5
 
-    # Data paths
-    IMAGES_DIR: Path = Path("paper_detection/data/images")
-    CORNERS_FILE: Path = Path("paper_detection/data/corners.json")
-    DATASET_FILE: Path = Path("paper_detection/data/dataset.json")
+    # Data paths (absolute paths based on module location)
+    IMAGES_DIR: Path = _MODULE_ROOT / "data" / "images"
+    CORNERS_FILE: Path = _MODULE_ROOT / "data" / "corners.json"
+    DATASET_FILE: Path = _MODULE_ROOT / "data" / "dataset.json"
 
-    # Output paths
-    OUTPUT_DIR: Path = Path("paper_detection/model/checkpoints")
-    CHECKPOINT_DIR: Path = Path("paper_detection/model/checkpoints/training")
-    DEBUG_DIR: Path = Path("temp/segmentation_debug")
+    # Output paths (absolute paths based on module location)
+    OUTPUT_DIR: Path = _CONFIG_DIR / "checkpoints"
+    CHECKPOINT_DIR: Path = _CONFIG_DIR / "checkpoints" / "training"
+    DEBUG_DIR: Path = _MODULE_ROOT.parent / "temp" / "segmentation_debug"
 
-    # Model save path
-    MODEL_PATH: Path = Path("paper_detection/model/checkpoints/paper_segmentation_unet.pth")
+    # Model save path (absolute path)
+    MODEL_PATH: Path = _CONFIG_DIR / "checkpoints" / "paper_segmentation_unet.pth"
 
     # Data split
     TRAIN_SPLIT: float = 0.8

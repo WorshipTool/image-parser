@@ -3,6 +3,9 @@ import os
 import sys
 from typing import Generator
 
+# Add parser to path for sheet_detection
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'parser'))
+
 import sheet_detection  # Auto-initializes model on import
 import image_reader
 import sheet_formatter

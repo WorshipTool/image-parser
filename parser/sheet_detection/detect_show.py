@@ -2,12 +2,12 @@ import os
 import sys
 import cv2 as cv
 
-# Add parent directory to path to import sheet_detection as module
+# Add parent (parser) directory to path
 current_directory = os.path.dirname(os.path.abspath(__file__))
 parent_directory = os.path.dirname(current_directory)
 sys.path.insert(0, parent_directory)
 
-import sheet_detection  # Auto-initializes model on import
+import sheet_detection
 
 # load imagepath from argument
 imagePath = ""

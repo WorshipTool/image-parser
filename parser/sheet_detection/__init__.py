@@ -2,8 +2,18 @@ from typing import Generator
 from PIL import Image
 import cv2 as cv
 import os
+import sys
 
 from ultralytics import YOLO
+
+# Setup paths
+current_directory = os.path.dirname(os.path.abspath(__file__))
+parent_directory = os.path.dirname(current_directory)  # parser/
+grandparent_directory = os.path.dirname(parent_directory)  # image-parser/
+tempFolderPath = os.path.join(grandparent_directory, "tmp")
+
+# Add grandparent to path for common module imports
+sys.path.insert(0, grandparent_directory)
 
 from .song_detect_group import SongDetectGroup, groupCustomDetect
 from .custom_detect import CustomDetect
@@ -12,12 +22,8 @@ from .custom_detect import CustomDetect
 modelReady = False
 model = None
 
-current_directory = os.path.dirname(os.path.abspath(__file__))
-parent_directory = os.path.dirname(current_directory)
-tempFolderPath = os.path.join(parent_directory, "tmp")
-
-# Default model path
-DEFAULT_MODEL_PATH = os.path.join(parent_directory, "yolo8best.pt")
+# Default model path (in image-parser root)
+DEFAULT_MODEL_PATH = os.path.join(grandparent_directory, "yolo8best.pt")
 
 def prepare_model(modelPath: str = None):
     """

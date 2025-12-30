@@ -16,15 +16,13 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Union
 
-# Add parent directory to path for sheet_detection import
-_current_dir = Path(__file__).parent
-_parent_dir = _current_dir.parent
-sys.path.insert(0, str(_parent_dir))
+# Add current directory to path for submodules
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from paper_detection import PaperDetector
 from paper_transform import warp_paper
 from paper_transform.document_orient import orient_by_text
-import sheet_detection  # Auto-initializes model on import
+from sheet_detection import detect_simple  # Auto-initializes model on import
 
 
 def get_sheet_components_from_image(
@@ -99,7 +97,7 @@ def get_sheet_components_from_image(
             cv2.imwrite(temp_path, image_bgr)
 
             # Run sheet detection
-            sheet_groups = sheet_detection.detect_simple(temp_path, show=False)
+            sheet_groups = detect_simple(temp_path, show=False)
 
             if debug:
                 print(f"  Found {len(sheet_groups)} sheet group(s)")

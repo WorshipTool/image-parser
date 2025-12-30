@@ -8,7 +8,6 @@ No preprocessing - just reads the image as-is.
 """
 
 import numpy as np
-import os
 import sys
 from typing import Optional, Union
 from pathlib import Path

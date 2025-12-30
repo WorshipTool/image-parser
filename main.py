@@ -7,10 +7,8 @@ from typing import Generator
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'parser'))
 
 import sheet_detection  # Auto-initializes model on import
-import image_reader
-import sheet_formatter
+from text_parser import ocr, formatter
 import common
-from sheet_formatter.sheet import Sheet
 import ai
 
 # Prepare paths
@@ -66,13 +64,13 @@ def parse_images(inputImages: list[str], outputPath: str = None) -> Generator[in
 
         imageResults  = []
         for ii, detectedResult in enumerate(detectedResults):
-            titleReadData = image_reader.read(detectedResult.title.image) if detectedResult.title is not None else None
+            titleReadData = ocr.read(detectedResult.title.image) if detectedResult.title is not None else None
 
 
             partProgress = 30 + ii * 30 / len(detectedResults) + 5 / len(detectedResults) # Cca 35% progress
             yield getPartProgress()
 
-            dataReadData = image_reader.read(detectedResult.data.image) if detectedResult.data is not None else None
+            dataReadData = ocr.read(detectedResult.data.image) if detectedResult.data is not None else None
 
 
 
@@ -81,7 +79,7 @@ def parse_images(inputImages: list[str], outputPath: str = None) -> Generator[in
 
 
             if(titleReadData is None or dataReadData is None):
-                sheetReadData = image_reader.read(detectedResult.sheet.image) if detectedResult.sheet is not None else None
+                sheetReadData = ocr.read(detectedResult.sheet.image) if detectedResult.sheet is not None else None
                 if(sheetReadData is not None):
                     if(titleReadData is None):
                         titleReadData = sheetReadData
@@ -100,7 +98,7 @@ def parse_images(inputImages: list[str], outputPath: str = None) -> Generator[in
             yield getPartProgress()
 
 
-            formatted = sheet_formatter.format(titleReadData, dataReadData, SAMPLE_IMAGE_PATH, detectedResult.image)
+            formatted = formatter.format(titleReadData, dataReadData, SAMPLE_IMAGE_PATH, detectedResult.image)
 
             print("\t" + str(len(imageResults)+1) + ". sheet detected")
             

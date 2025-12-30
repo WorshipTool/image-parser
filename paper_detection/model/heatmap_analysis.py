@@ -15,6 +15,7 @@ def analyze_heatmap(
     min_component_ratio: float = 0.7,
     min_extent: float = 0.4,
     max_bbox_cover: float = 0.75,  # Lowered from 0.95 to reject fullscreen-like content
+    max_components: int = 4,  # Reject screenshots with many fragmented regions
     debug: bool = False
 ) -> Dict:
     """
@@ -30,6 +31,7 @@ def analyze_heatmap(
         min_component_ratio: Minimum ratio of largest component to total area (default 70%)
         min_extent: Minimum extent (component_area / bbox_area, default 40%)
         max_bbox_cover: Maximum bbox coverage of image (reject fullscreen, default 75%)
+        max_components: Maximum number of components (reject fragmented screenshots, default 4)
         debug: If True, print debug information
 
     Returns:
@@ -120,15 +122,19 @@ def analyze_heatmap(
     elif area_ratio > max_area_ratio:
         rejection_reason = f'area_too_large ({area_ratio:.1%} > {max_area_ratio:.1%})'
 
-    # Check 3: Largest component ratio too low (no single dominant region)
+    # Check 3: Too many components (fragmented screenshot with text/content)
+    elif num_labels - 1 > max_components:
+        rejection_reason = f'too_many_components ({num_labels - 1} > {max_components})'
+
+    # Check 4: Largest component ratio too low (no single dominant region)
     elif largest_component_ratio < min_component_ratio:
         rejection_reason = f'fragmented ({largest_component_ratio:.1%} < {min_component_ratio:.1%})'
 
-    # Check 4: Extent too low (shape not paper-like/rectangular)
+    # Check 5: Extent too low (shape not paper-like/rectangular)
     elif extent < min_extent:
         rejection_reason = f'extent_low ({extent:.1%} < {min_extent:.1%})'
 
-    # Check 5: Bbox covers almost entire image (fullscreen)
+    # Check 6: Bbox covers almost entire image (fullscreen)
     elif bbox_cover > max_bbox_cover:
         rejection_reason = f'bbox_fullscreen ({bbox_cover:.1%} > {max_bbox_cover:.1%})'
 

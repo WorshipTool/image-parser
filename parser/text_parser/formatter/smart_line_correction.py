@@ -62,10 +62,14 @@ def smart_lines_correction(lines: List[Line], image: np.ndarray) -> List[Line]:
         if should_correct:
             # Crop image to line bounds
 
-            croped_image = image[
-                int(line.bounds.top):int(line.bounds.top + line.bounds.height),
-                int(line.bounds.left):int(line.bounds.left + line.bounds.width)
-            ]
+            # Add light padding to line bounds
+            pad = 5
+            top = max(0, int(line.bounds.top) - pad)
+            bottom = min(image.shape[0], int(line.bounds.top + line.bounds.height) + pad)
+            left = max(0, int(line.bounds.left) - pad)
+            right = min(image.shape[1], int(line.bounds.left + line.bounds.width) + pad)
+
+            croped_image = image[top:bottom, left:right]
             corrected_line = smart_line_correction(line, croped_image) 
         else:
             corrected_line = line

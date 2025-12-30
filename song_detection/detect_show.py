@@ -21,11 +21,11 @@ else:
     exit(0)
 
 # Detect
-results = song_detection.detect(imagePath, show=False)
+results = song_detection.detect_simple(imagePath, show=False)
 
 inputImage = cv.imread(imagePath)
-# # Draw
-song_detection.renderResults(inputImage,results, strokeWidth=3, fontSize=2)
+# Draw
+song_detection.renderResults(inputImage, results, strokeWidth=3, fontSize=2)
 
 # Show
 cv.imshow("Result", inputImage)

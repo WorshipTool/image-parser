@@ -31,6 +31,25 @@ def prepare_model(modelPath: str):
         os.makedirs(tempFolderPath)
 
 
+def detect_simple(imagePath: str, show: bool = False) -> list[SongDetectGroup]:
+    """
+    Simple detection without progress tracking.
+
+    Args:
+        imagePath: Path to image file
+        show: If True, display results in window
+
+    Returns:
+        List of SongDetectGroup objects
+    """
+    detectGen = detect(imagePath, show)
+    while True:
+        try:
+            next(detectGen)
+        except StopIteration as e:
+            return e.value
+
+
 def detect(imagePath: str,show: bool = False) -> Generator[int, None, list[SongDetectGroup]]:
 
     yield 0; # 0% progress
@@ -108,11 +127,21 @@ def launchRealTimeDetection():
         # Capture frame-by-frame
         ret, frame = cap.read()
 
-
         # Detect
         results = model.predict(frame)
+
+        # Convert YOLO results to CustomDetect objects
+        formattedResults = []
+        for result in results:
+            for box in result.boxes:
+                formattedResults.append(CustomDetect(box, result))
+
+        # Group results
+        songDetectGroups = groupCustomDetect(formattedResults)
+
         # Draw results
-        frame = renderResults(frame, results)
+        frame = renderResults(frame, songDetectGroups)
+
         # Display the resulting frame
         cv.imshow('frame', frame)
 

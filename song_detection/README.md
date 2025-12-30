@@ -25,14 +25,15 @@ YOLOv8-based song detection for sheet music images.
 
 ### Python API
 
+**Simple detection** (no progress tracking):
 ```python
 import song_detection
 
 # Prepare model
 song_detection.prepare_model("yolo8best.pt")
 
-# Detect songs in image
-results = song_detection.detect("image.jpg", show=False)
+# Detect songs in image (simple version)
+results = song_detection.detect_simple("image.jpg", show=False)
 
 # Process results
 for song_group in results:
@@ -42,6 +43,20 @@ for song_group in results:
         print(f"Data: {song_group.data.label}")
     if song_group.sheet:
         print(f"Sheet: {song_group.sheet.label}")
+```
+
+**Detection with progress tracking**:
+```python
+# detect() is a generator that yields progress (0-100)
+detectGen = song_detection.detect("image.jpg", show=False)
+
+while True:
+    try:
+        progress = next(detectGen)
+        print(f"Progress: {progress}%")
+    except StopIteration as e:
+        results = e.value  # Final results
+        break
 ```
 
 ### Command Line

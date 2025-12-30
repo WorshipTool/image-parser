@@ -5,9 +5,8 @@ import os
 
 from ultralytics import YOLO
 
-from .song_detect_group import SongDetectGroup, groupCustomDetect 
+from .song_detect_group import SongDetectGroup, groupCustomDetect
 from .custom_detect import CustomDetect
-from .photo_perspective_fixer import PhotoPerspectiveFixer
 
 
 modelReady = False
@@ -40,18 +39,10 @@ def detect(imagePath: str,show: bool = False) -> Generator[int, None, list[SongD
         print("Model not ready. Please call prepare_model() first.")
         return []
 
-    # Fix rotation and perspective
-    FIXED_INPUT_IMAGE_PATH = tempFolderPath + "/perspective-fixed.jpg"
-
-    inputImage = cv.imread(imagePath)
-    perspectiveFixedImage = PhotoPerspectiveFixer.fix(inputImage)
-    cv.imwrite(FIXED_INPUT_IMAGE_PATH, perspectiveFixedImage)
-
-
     yield 20; # 20% progress
 
     # Detect
-    results = model.predict(FIXED_INPUT_IMAGE_PATH)
+    results = model.predict(imagePath)
 
 
     yield 70; # 70% progress
@@ -78,7 +69,7 @@ def detect(imagePath: str,show: bool = False) -> Generator[int, None, list[SongD
 
 
     if show:
-        image = cv.imread(FIXED_INPUT_IMAGE_PATH)
+        image = cv.imread(imagePath)
         print(image.shape, results[0].orig_img.shape)
         renderResults(image, songDetectGroups, strokeWidth=3, fontSize=2)
         cv.imshow("Input-image", image)

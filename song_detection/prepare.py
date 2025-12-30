@@ -4,7 +4,8 @@ import os
 MODEL_DROPBOX_URL = 'https://www.dropbox.com/scl/fi/7ch7pyk7u2c40xnyvytok/best.pt?rlkey=1g7jp9z4pengj49q2cv39ghm5&dl=1'
 
 current_directory = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(current_directory, "yolo8best.pt")
+parent_directory = os.path.dirname(current_directory)
+model_path = os.path.join(parent_directory, "yolo8best.pt")
 
 def download_file(url, local_name):
     response = requests.get(url)

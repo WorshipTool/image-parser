@@ -1,10 +1,15 @@
 import os
+import sys
 import cv2 as cv
 
-import song_detection;
-
+# Add parent directory to path to import song_detection as module
 current_directory = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(current_directory, "yolo8best.pt")
+parent_directory = os.path.dirname(current_directory)
+sys.path.insert(0, parent_directory)
+
+import song_detection
+
+model_path = os.path.join(parent_directory, "yolo8best.pt")
 song_detection.prepare_model(model_path)
 
 # load imagepath from argument

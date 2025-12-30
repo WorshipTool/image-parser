@@ -93,7 +93,7 @@ def _detect_and_merge_sheets(image_bgr: np.ndarray, debug: bool = False) -> np.n
 def get_sheet_components_from_image(
     image: Union[str, Path, np.ndarray],
     debug: bool = False
-) -> list:
+) -> list[np.ndarray]:
     """
     Extract sheet images from an input image.
 

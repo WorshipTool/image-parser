@@ -8,6 +8,7 @@ from .sheet import Sheet
 from ..ocr.read_word_data import ReadWordData
 from .line import Line
 from .section import Section
+from .smart_line_correction import smart_lines_correction
 
 def insert_str(string, str_to_insert, index):
     return string[:index] + str_to_insert + string[index:]
@@ -265,10 +266,12 @@ def format(dataData:list[ReadWordData], inputImagePath: str, cropedImageData) ->
 
     lines = read_word_list_to_lines(dataData)
 
+    # Apply smart corrections
+    lines = smart_lines_correction(lines, cropedImageData)
+
     # Print lines
     for line in lines:
         print(f"[{line.avgConfidence, line.chordLinePossibility}] {[word.text for word in line.words]}")
-
 
     sections = split_lines_to_sections(lines)
     data = sections_to_formatted_string(sections)

@@ -6,7 +6,7 @@ Intelligent sheet music extraction from images.
 
 Automatically extracts sheet music using multi-stage detection:
 - **Photos with paper** → Paper detection + perspective correction + orientation
-- **Screenshots** → YOLO sheet detection + cropping
+- **Screenshots** → YOLO sheet detection + merged cropping (all sheets combined)
 - **No detection** → Returns original image
 
 ## Quick Start
@@ -27,13 +27,16 @@ cv2.imwrite("output.jpg", sheets[0])
 1. **Paper Detection** - U-Net checks for physical paper (shouldCrop decision)
 2. **Perspective Correction** - Warps paper to rectangular view (if paper detected)
 3. **Orientation** - OCR-based rotation detection (if paper detected)
-4. **Sheet Detection** - YOLO detects sheets in screenshots (if no paper detected)
+4. **Sheet Detection** - YOLO detects sheets, merges bounding boxes, crops (if no paper detected)
 
 ## API
 
 **`get_sheet_components_from_image(image, debug=False)`**
 - `image`: Path (str/Path) or numpy array (BGR)
-- Returns: `list[np.ndarray]` - Sheet images
+- Returns: `list[np.ndarray]` - Always returns list with 1 sheet image
+  - Paper detected: transformed sheet
+  - Screenshot: merged bounding box of all detected sheets
+  - No detection: original image
 
 **`get_sheet_components_batch(image_paths, debug=False, output_dir=None)`**
 - `image_paths`: List of image paths
@@ -79,7 +82,7 @@ sheets = get_sheet_components_from_image("photo.jpg", debug=True)
 **Screenshot:**
 ```python
 sheets = get_sheet_components_from_image("screenshot.png", debug=True)
-# → No paper → YOLO detection → 3 sheets extracted
+# → No paper → YOLO detection → 3 sheets merged into 1 cropped image
 ```
 
 **Batch:**

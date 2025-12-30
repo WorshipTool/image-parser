@@ -25,6 +25,70 @@ from paper_transform.document_orient import orient_by_text
 from sheet_detection import detect_simple  # Auto-initializes model on import
 
 
+def _detect_and_merge_sheets(image_bgr: np.ndarray, debug: bool = False) -> np.ndarray:
+    """
+    Detect sheets using YOLO and merge all detected bounding boxes.
+
+    Args:
+        image_bgr: Input image (BGR format)
+        debug: Print debug information
+
+    Returns:
+        np.ndarray: Cropped image containing all detected sheets merged
+    """
+    # Save image to temp file for sheet detection
+    temp_fd, temp_path = tempfile.mkstemp(suffix='.jpg')
+    try:
+        os.close(temp_fd)
+        cv2.imwrite(temp_path, image_bgr)
+
+        # Run sheet detection
+        sheet_groups = detect_simple(temp_path, show=False)
+
+        if debug:
+            print(f"  Found {len(sheet_groups)} sheet group(s)")
+
+        if not sheet_groups:
+            if debug:
+                print(f"⚠ No sheets detected, returning original image")
+            return image_bgr
+
+        # Collect all sheet bounding boxes
+        sheet_bounds = []
+        for i, group in enumerate(sheet_groups):
+            if group.sheet and group.sheet.bounds is not None:
+                sheet_bounds.append(group.sheet.bounds)
+                if debug:
+                    bounds = group.sheet.bounds
+                    print(f"  Sheet {i+1}: ({int(bounds.left)}, {int(bounds.top)}, {int(bounds.width)}, {int(bounds.height)})")
+
+        if not sheet_bounds:
+            if debug:
+                print(f"⚠ No sheet bounds found, returning original image")
+            return image_bgr
+
+        # Calculate union of all bounding boxes
+        min_left = min(b.left for b in sheet_bounds)
+        min_top = min(b.top for b in sheet_bounds)
+        max_right = max(b.left + b.width for b in sheet_bounds)
+        max_bottom = max(b.top + b.height for b in sheet_bounds)
+
+        # Crop image to union of all sheets
+        cropped = image_bgr[int(min_top):int(max_bottom), int(min_left):int(max_right)]
+
+        if debug:
+            print(f"✓ Merged {len(sheet_bounds)} sheet(s) into bounding box:")
+            print(f"  ({int(min_left)}, {int(min_top)}) → ({int(max_right)}, {int(max_bottom)})")
+            print(f"  Size: {cropped.shape[1]}x{cropped.shape[0]}")
+
+        return cropped
+
+    finally:
+        # Clean up temp file
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
 def get_sheet_components_from_image(
     image: Union[str, Path, np.ndarray],
     debug: bool = False
@@ -90,45 +154,9 @@ def get_sheet_components_from_image(
             print(f"✗ No paper detected: {rejection_reason}")
             print(f"→ Trying sheet detection (likely screenshot)...")
 
-        # Save image to temp file for sheet detection
-        temp_fd, temp_path = tempfile.mkstemp(suffix='.jpg')
-        try:
-            os.close(temp_fd)
-            cv2.imwrite(temp_path, image_bgr)
-
-            # Run sheet detection
-            sheet_groups = detect_simple(temp_path, show=False)
-
-            if debug:
-                print(f"  Found {len(sheet_groups)} sheet group(s)")
-
-            # Extract sheet images from detection results
-            sheet_images = []
-            for i, group in enumerate(sheet_groups):
-                # Try to get sheet image, fallback to group.image if sheet not available
-                if group.sheet and group.sheet.image is not None:
-                    sheet_images.append(group.sheet.image)
-                    if debug:
-                        print(f"  ✓ Extracted sheet {i+1} from .sheet")
-                elif group.image is not None:
-                    sheet_images.append(group.image)
-                    if debug:
-                        print(f"  ✓ Extracted sheet {i+1} from .image")
-
-            # If found sheets, return them; otherwise return original image
-            if sheet_images:
-                if debug:
-                    print(f"✓ Returning {len(sheet_images)} detected sheet(s)")
-                return sheet_images
-            else:
-                if debug:
-                    print(f"⚠ No sheets detected, returning original image")
-                return [image_bgr]
-
-        finally:
-            # Clean up temp file
-            if os.path.exists(temp_path):
-                os.unlink(temp_path)
+        # Detect and merge sheets
+        cropped = _detect_and_merge_sheets(image_bgr, debug=debug)
+        return [cropped]
 
     # Step 2: Perspective Correction
     try:
@@ -228,20 +256,16 @@ Examples:
 
         sheets = get_sheet_components_from_image(str(image_path), debug=args.debug)
 
-        # Save sheets
-        for i, sheet in enumerate(sheets):
-            if len(sheets) == 1:
-                output_filename = f"{image_path.stem}_sheet.jpg"
-            else:
-                output_filename = f"{image_path.stem}_sheet{i+1}.jpg"
-
+        # Save sheet (always 1 image)
+        if sheets:
+            output_filename = f"{image_path.stem}_sheet.jpg"
             output_path = output_dir / output_filename
-            cv2.imwrite(str(output_path), sheet)
+            cv2.imwrite(str(output_path), sheets[0])
 
             if args.debug:
                 print(f"✓ Saved: {output_path}")
 
-        total_sheets += len(sheets)
+            total_sheets += 1
 
     # Summary
     print(f"\n{'='*60}")

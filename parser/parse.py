@@ -5,16 +5,26 @@ Integrates:
 - Paper detection (shouldCrop decision)
 - Paper transformation (perspective correction)
 - Document orientation (text-based rotation)
+- Sheet detection (YOLO-based detection for screenshots)
 """
 
 import cv2
 import numpy as np
+import os
+import sys
+import tempfile
 from pathlib import Path
 from typing import Optional, Union
+
+# Add parent directory to path for sheet_detection import
+_current_dir = Path(__file__).parent
+_parent_dir = _current_dir.parent
+sys.path.insert(0, str(_parent_dir))
 
 from paper_detection import PaperDetector
 from paper_transform import warp_paper
 from paper_transform.document_orient import orient_by_text
+import sheet_detection  # Auto-initializes model on import
 
 
 def get_sheet_components_from_image(
@@ -27,7 +37,7 @@ def get_sheet_components_from_image(
     Pipeline:
     1. Paper detection - check if image contains physical paper (shouldCrop)
     2. If shouldCrop = True: crop, transform (warp), and orient the paper
-    3. If shouldCrop = False: return original image as-is
+    3. If shouldCrop = False: use sheet detection (YOLO) to find and crop sheets
     4. Return list of sheet images
 
     Args:
@@ -35,17 +45,22 @@ def get_sheet_components_from_image(
         debug: If True, print debug information
 
     Returns:
-        list: List of sheet images (np.ndarray), always contains 1 image.
-              - If paper detected: warped and oriented sheet
-              - If no paper: original image unchanged
+        list: List of sheet images (np.ndarray).
+              - If paper detected: [warped and oriented sheet] (1 image)
+              - If no paper (screenshot): [detected sheets...] (0+ images)
+              - If no paper and no sheets found: [original image] (1 image)
 
     Examples:
         >>> # Photo with paper - returns transformed sheet
         >>> sheets = get_sheet_components_from_image("photo.jpg")
         >>> cv2.imwrite("output.jpg", sheets[0])
 
-        >>> # Screenshot - returns original image
+        >>> # Screenshot with multiple sheets - returns multiple cropped sheets
         >>> sheets = get_sheet_components_from_image("screenshot.png")
+        >>> print(len(sheets))  # Could be 1, 2, 3+ depending on detected sheets
+
+        >>> # Screenshot with no detectable sheets - returns original
+        >>> sheets = get_sheet_components_from_image("no_sheets.png")
         >>> print(len(sheets))  # 1 (original image)
     """
     # Load image if path provided
@@ -70,12 +85,52 @@ def get_sheet_components_from_image(
     should_crop = detection_result['shouldCrop']
     corners = detection_result['corners']
 
-    # If no paper detected, return original image without transformation
+    # If no paper detected, likely a screenshot - use sheet detection
     if not should_crop:
         if debug:
             rejection_reason = detection_result['debug']['heatmap_analysis'].get('rejection_reason', 'unknown')
-            print(f"✗ No paper detected: {rejection_reason}, returning original image")
-        return [image_bgr]
+            print(f"✗ No paper detected: {rejection_reason}")
+            print(f"→ Trying sheet detection (likely screenshot)...")
+
+        # Save image to temp file for sheet detection
+        temp_fd, temp_path = tempfile.mkstemp(suffix='.jpg')
+        try:
+            os.close(temp_fd)
+            cv2.imwrite(temp_path, image_bgr)
+
+            # Run sheet detection
+            sheet_groups = sheet_detection.detect_simple(temp_path, show=False)
+
+            if debug:
+                print(f"  Found {len(sheet_groups)} sheet group(s)")
+
+            # Extract sheet images from detection results
+            sheet_images = []
+            for i, group in enumerate(sheet_groups):
+                # Try to get sheet image, fallback to group.image if sheet not available
+                if group.sheet and group.sheet.image is not None:
+                    sheet_images.append(group.sheet.image)
+                    if debug:
+                        print(f"  ✓ Extracted sheet {i+1} from .sheet")
+                elif group.image is not None:
+                    sheet_images.append(group.image)
+                    if debug:
+                        print(f"  ✓ Extracted sheet {i+1} from .image")
+
+            # If found sheets, return them; otherwise return original image
+            if sheet_images:
+                if debug:
+                    print(f"✓ Returning {len(sheet_images)} detected sheet(s)")
+                return sheet_images
+            else:
+                if debug:
+                    print(f"⚠ No sheets detected, returning original image")
+                return [image_bgr]
+
+        finally:
+            # Clean up temp file
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
 
     # Step 2: Perspective Correction
     try:

@@ -7,10 +7,7 @@ sheet_detection_dir = os.path.dirname(current_directory)
 parent_directory = os.path.dirname(sheet_detection_dir)
 sys.path.insert(0, parent_directory)
 
-from sheet_detection import detect_simple, prepare_model
-
-model_path = os.path.join(parent_directory, "yolo8best.pt")
-prepare_model(model_path)
+from sheet_detection import detect_simple  # Auto-initializes model on import
 
 class TestClass:
     def test_detect1(self):

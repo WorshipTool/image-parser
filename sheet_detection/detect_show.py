@@ -7,10 +7,7 @@ current_directory = os.path.dirname(os.path.abspath(__file__))
 parent_directory = os.path.dirname(current_directory)
 sys.path.insert(0, parent_directory)
 
-import sheet_detection
-
-model_path = os.path.join(parent_directory, "yolo8best.pt")
-sheet_detection.prepare_model(model_path)
+import sheet_detection  # Auto-initializes model on import
 
 # load imagepath from argument
 imagePath = ""

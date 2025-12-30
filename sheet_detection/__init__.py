@@ -10,17 +10,32 @@ from .custom_detect import CustomDetect
 
 
 modelReady = False
+model = None
 
 current_directory = os.path.dirname(os.path.abspath(__file__))
 parent_directory = os.path.dirname(current_directory)
 tempFolderPath = os.path.join(parent_directory, "tmp")
 
-def prepare_model(modelPath: str):
+# Default model path
+DEFAULT_MODEL_PATH = os.path.join(parent_directory, "yolo8best.pt")
+
+def prepare_model(modelPath: str = None):
+    """
+    Prepare the YOLO model for detection.
+
+    Args:
+        modelPath: Optional path to model file. If not provided, uses default path.
+    """
     global model
     global modelReady
 
+    # Use default path if not provided
+    if modelPath is None:
+        modelPath = DEFAULT_MODEL_PATH
+
     if not os.path.exists(modelPath):
-        print("Model not found. Please first call prepare.py to download the model.")
+        print(f"Model not found at: {modelPath}")
+        print("Please run prepare.py to download the model.")
         return
 
     model = YOLO(modelPath)
@@ -29,6 +44,10 @@ def prepare_model(modelPath: str):
     # Create temp folder if not exists
     if not os.path.exists(tempFolderPath):
         os.makedirs(tempFolderPath)
+
+# Auto-initialize model on import if it exists
+if os.path.exists(DEFAULT_MODEL_PATH):
+    prepare_model()
 
 
 def detect_simple(imagePath: str, show: bool = False) -> list[SongDetectGroup]:

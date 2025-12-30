@@ -27,10 +27,7 @@ YOLOv8-based sheet detection for sheet music images.
 
 **Simple detection** (no progress tracking):
 ```python
-import sheet_detection
-
-# Prepare model
-sheet_detection.prepare_model("yolo8best.pt")
+import sheet_detection  # Auto-loads model on import
 
 # Detect sheets in image (simple version)
 results = sheet_detection.detect_simple("image.jpg", show=False)
@@ -47,6 +44,8 @@ for song_group in results:
 
 **Detection with progress tracking**:
 ```python
+import sheet_detection  # Auto-loads model on import
+
 # detect() is a generator that yields progress (0-100)
 detectGen = sheet_detection.detect("image.jpg", show=False)
 
@@ -57,6 +56,16 @@ while True:
     except StopIteration as e:
         results = e.value  # Final results
         break
+```
+
+**Custom model path** (optional):
+```python
+import sheet_detection
+
+# Use custom model path if needed
+sheet_detection.prepare_model("/path/to/custom_model.pt")
+
+results = sheet_detection.detect_simple("image.jpg")
 ```
 
 ### Command Line

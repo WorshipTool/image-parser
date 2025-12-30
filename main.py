@@ -3,18 +3,12 @@ import os
 import sys
 from typing import Generator
 
-import sheet_detection
+import sheet_detection  # Auto-initializes model on import
 import image_reader
 import sheet_formatter
 import common
 from sheet_formatter.sheet import Sheet
 import ai
-
-
-# Prepare model
-current_directory = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(current_directory, "yolo8best.pt")
-sheet_detection.prepare_model(model_path)
 
 # Prepare paths
 defaultOutputPath = os.path.join("tmp", "op.json")

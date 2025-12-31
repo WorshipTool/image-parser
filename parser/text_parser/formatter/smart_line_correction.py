@@ -117,7 +117,9 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
     except Exception as exc:  # Keep original line on AI failure
         print(f"AI line correction skipped: {exc}")
 
-
+    
+    # Filter out empty words
+    line.words = [word for word in line.words if word.text.strip() != ""]
 
     return line
 
@@ -152,5 +154,8 @@ def smart_lines_correction(lines: List[Line], image: np.ndarray) -> List[Line]:
         else:
             corrected_line = line
         corrected_lines.append(corrected_line)
+
+
+
 
     return corrected_lines

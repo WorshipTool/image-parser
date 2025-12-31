@@ -55,36 +55,44 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
             "additionalProperties": False
         }
         prompt = (
-            "IMPORTANT: The image is the ONLY source of truth. The OCR tokens are often wrong.\n"
-            "Do NOT blindly copy the input. Correct tokens based on what you SEE in the image.\n\n"
+            "IMPORTANT: The image is the ONLY source of truth. OCR tokens are unreliable.\n"
+            "Do NOT copy the input tokens just because they exist.\n\n"
 
-            "First, decide the line type and set `isChordLine`:\n"
-            "- isChordLine = true if the line contains ONLY chord symbols "
-            "(e.g. C, Dm7, G#dim, C/E, D7add9/F#).\n"
-            "- isChordLine = false if the line contains normal lyric text (words).\n\n"
+            "HARD OVERRIDE (use ONLY when truly empty/noise):\n"
+            "If the crop contains NO chord-like symbols at all (no A–G letters, no #/b, no /, no digits), "
+            "and it is only punctuation/quotes/diacritics/random strokes, then:\n"
+            "- set isChordLine = false\n"
+            "- return words as ALL empty strings \"\" (same length as input)\n\n"
 
-            "Then return a JSON object with:\n"
-            "- `isChordLine`\n"
-            "- `words`: an array with the SAME number of items as the input.\n\n"
+            "NOTE: A chord line may contain only 1–3 chords in the whole crop (e.g. just 'C' and 'Dm7'). "
+            "That still counts as a valid CHORD_LINE.\n\n"
 
-            "Rules for `words`:\n"
-            "- Each item corresponds to the same position as in the input list.\n"
-            "- If an OCR token does NOT match what is visible in the image at that position, correct it.\n"
-            "- If there is NO meaningful token visible at that position (OCR noise, random strokes), "
-            "return an empty string \"\".\n"
-            "- Preserve order and list length at all times.\n\n"
+            "STEP 1 — Decide line type:\n"
+            "- isChordLine = true  → the image shows chord symbols (even if only a few)\n"
+            "- isChordLine = false → the image shows normal lyric text OR truly empty/noise-only line\n\n"
 
-            "Rules depending on `isChordLine`:\n"
-            "- If isChordLine = true:\n"
-            "  - Every non-empty item MUST be a valid chord symbol.\n"
-            "  - Any token that is not a chord MUST be returned as \"\".\n"
-            "- If isChordLine = false:\n"
-            "  - Tokens that look like chords MUST be returned as \"\".\n"
-            "  - Return normal words only.\n\n"
+            "STEP 2 — Return JSON with fields:\n"
+            "- isChordLine (boolean)\n"
+            "- words: array of strings with EXACTLY the same length and order as the input\n\n"
 
-            "Do NOT add, remove, split, or merge tokens.\n"
-            "Do NOT invent text or chords.\n"
-            "Return ONLY valid JSON that matches the required schema.\n\n"
+            "GENERAL RULES FOR words:\n"
+            "- Each item corresponds to the same position as the input token.\n"
+            "- If there is no meaningful token visible for that item, return \"\".\n"
+            "- NEVER invent text or chords.\n\n"
+
+            "RULES IF isChordLine = true:\n"
+            "- Non-empty tokens MUST be valid chord symbols only.\n"
+            "- Remove punctuation/quotes from chord tokens (: , . ; \" “ ” ‘ ’ etc).\n"
+            "- If a token is not a valid chord after cleaning, return \"\".\n\n"
+
+            "RULES IF isChordLine = false:\n"
+            "- Return normal lyric words only.\n"
+            "- Tokens that look like chords MUST be returned as \"\".\n\n"
+
+            "STRICT CONSTRAINTS:\n"
+            "- Do NOT add, remove, split, or merge tokens.\n"
+            "- Do NOT change token order.\n"
+            "- Return ONLY valid JSON.\n\n"
 
             "Input OCR tokens:\n"
             f"{json.dumps([w.text for w in line.words], ensure_ascii=False)}"
@@ -101,6 +109,7 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
                 line.words[-1].text += " " + " ".join(tokens[len(line.words):])
 
             line.avgConfidence = 100.0
+            line.chordLinePossibility = 1.0 if result.get("isChordLine") else 0.0
             print(f"AI corrected line {_line_counter - 1}: {' '.join(tokens)} | isChordLine: {result.get('isChordLine')}")
             print(output_path, line)
         else:

@@ -12,9 +12,12 @@ from ai import send_image_and_question
 from .line import Line
 import uuid
 from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
-# Counter for unique line image filenames
+# Counter for unique line image filenames (thread-safe)
 _line_counter = 0
+_counter_lock = threading.Lock()
 
 def smart_line_correction(line: Line, image: np.ndarray) -> Line:
     """
@@ -35,13 +38,16 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
     temp_dir = image_parser_root / "temp" / "line_corrections"
     temp_dir.mkdir(parents=True, exist_ok=True)
     rand_suffix = uuid.uuid4().hex[:8]
-    output_path = temp_dir / f"line_{_line_counter:04d}_{rand_suffix}.jpg"
+
+    # Thread-safe counter increment
+    with _counter_lock:
+        counter_value = _line_counter
+        _line_counter += 1
+
+    output_path = temp_dir / f"line_{counter_value:04d}_{rand_suffix}.jpg"
     cv2.imwrite(str(output_path), image)
 
     #TODO: its not necessary to save image to disk, can be sent as 64 string directly
-
-
-    _line_counter += 1
     try:
         schema = {
             "type": "object",
@@ -127,41 +133,58 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
     return line
 
 
-def smart_lines_correction(lines: List[Line], image: np.ndarray) -> List[Line]:
+def smart_lines_correction(lines: List[Line], image: np.ndarray, max_workers: int = 4) -> List[Line]:
     """
-    Apply smart corrections to all lines
+    Apply smart corrections to all lines in parallel
 
     Args:
         lines: List of Line objects to correct
         image_bgr: Original image (BGR format) from which text was extracted
+        max_workers: Maximum number of parallel workers (default: 4)
 
     Returns:
         List of corrected Line objects
     """
-    corrected_lines = []
+    def process_line(index: int, line: Line) -> tuple[int, Line]:
+        """Process a single line and return its index and result"""
+        should_correct = line.avgConfidence < 94 or line.chordLinePossibility > 0.5
+        if should_correct:
+            # Crop image to line bounds
+            # Add light padding to line bounds
+            pad = 5
+            top = max(0, int(line.bounds.top) - pad)
+            bottom = min(image.shape[0], int(line.bounds.top + line.bounds.height) + pad)
+            left = max(0, int(line.bounds.left) - pad)
+            right = min(image.shape[1], int(line.bounds.left + line.bounds.width) + pad)
+
+            croped_image = image[top:bottom, left:right]
+            corrected_line = smart_line_correction(line, croped_image)
+            return (index, corrected_line, True)
+        else:
+            return (index, line, False)
+
+    # Prepare results dictionary to preserve order
+    results = {}
 
     # Create progress bar
     with tqdm(total=len(lines), desc="Processing lines", unit="line", ncols=100) as pbar:
-        for line in lines:
-            should_correct = line.avgConfidence < 94
-            if should_correct:
-                # Crop image to line bounds
+        # Process lines in parallel
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            futures = {executor.submit(process_line, i, line): i for i, line in enumerate(lines)}
 
-                # Add light padding to line bounds
-                pad = 5
-                top = max(0, int(line.bounds.top) - pad)
-                bottom = min(image.shape[0], int(line.bounds.top + line.bounds.height) + pad)
-                left = max(0, int(line.bounds.left) - pad)
-                right = min(image.shape[1], int(line.bounds.left + line.bounds.width) + pad)
+            # Process completed tasks as they finish
+            for future in as_completed(futures):
+                index, corrected_line, was_corrected = future.result()
+                results[index] = corrected_line
 
-                croped_image = image[top:bottom, left:right]
-                corrected_line = smart_line_correction(line, croped_image)
-                pbar.set_postfix_str(f"AI corrected")
-            else:
-                corrected_line = line
-                pbar.set_postfix_str(f"Skipped (conf: {line.avgConfidence:.0f}%)")
+                # Update progress bar
+                if was_corrected:
+                    pbar.set_postfix_str(f"AI corrected")
+                else:
+                    pbar.set_postfix_str(f"Skipped (high conf)")
+                pbar.update(1)
 
-            corrected_lines.append(corrected_line)
-            pbar.update(1)
-
+    # Return results in original order
+    corrected_lines = [results[i] for i in range(len(lines))]
     return corrected_lines

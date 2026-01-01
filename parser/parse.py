@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from get_sheet_components import get_sheet_components_from_image
+from text_parser import read_and_parse_image
 
 
 if __name__ == "__main__":
@@ -25,6 +26,7 @@ if __name__ == "__main__":
     """
     import sys
     import argparse
+    import time
 
     parser = argparse.ArgumentParser(
         description="Extract sheet music from images using intelligent detection",
@@ -68,6 +70,9 @@ Examples:
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Start timing
+    start_time = time.time()
+
     # Process images
     total_sheets = 0
     for image_path in args.images:
@@ -93,11 +98,33 @@ Examples:
             if args.debug:
                 print(f"✓ Saved: {output_path}")
 
+            # Parse text from the sheet
+            text_result = read_and_parse_image(sheets[0], debug=args.debug)
+
+            if text_result:
+                # Save parsed text to file
+                text_filename = f"{image_path.stem}_sheet.txt"
+                text_path = output_dir / text_filename
+
+                with open(text_path, 'w', encoding='utf-8') as f:
+                    f.write(f"Title: {text_result['title']}\n")
+                    f.write("="*60 + "\n\n")
+                    f.write(text_result['data'])
+
+                if args.debug:
+                    print(f"✓ Saved text: {text_path}")
+                    print(f"  Title: {text_result['title']}")
+
             total_sheets += 1
+
+    # Calculate processing time
+    end_time = time.time()
+    elapsed_time = end_time - start_time
 
     # Summary
     print(f"\n{'='*60}")
     print(f"✓ Processed {len(args.images)} image(s)")
     print(f"✓ Extracted {total_sheets} sheet(s)")
     print(f"✓ Output directory: {output_dir.absolute()}")
+    print(f"✓ Total processing time: {elapsed_time:.2f}s")
     print('='*60)

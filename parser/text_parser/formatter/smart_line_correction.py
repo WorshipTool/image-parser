@@ -11,6 +11,7 @@ from pathlib import Path
 from ai import send_image_and_question
 from .line import Line
 import uuid
+from tqdm import tqdm
 
 # Counter for unique line image filenames
 _line_counter = 0
@@ -116,12 +117,8 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
 
             line.avgConfidence = 100.0
             line.chordLinePossibility = 1.0 if result.get("isChordLine") else 0.0
-            print(f"AI corrected line {_line_counter - 1}: {' '.join(tokens)} | isChordLine: {result.get('isChordLine')}")
-            print(output_path, line)
-        else:
-            print(f"AI line correction failed for line {_line_counter - 1}, keeping original.")
     except Exception as exc:  # Keep original line on AI failure
-        print(f"AI line correction skipped: {exc}")
+        pass  # Silently skip failed corrections
 
     
     # Filter out empty words
@@ -143,25 +140,28 @@ def smart_lines_correction(lines: List[Line], image: np.ndarray) -> List[Line]:
     """
     corrected_lines = []
 
-    for line in lines:
-        should_correct = line.avgConfidence < 94
-        if should_correct:
-            # Crop image to line bounds
+    # Create progress bar
+    with tqdm(total=len(lines), desc="Processing lines", unit="line", ncols=100) as pbar:
+        for line in lines:
+            should_correct = line.avgConfidence < 94
+            if should_correct:
+                # Crop image to line bounds
 
-            # Add light padding to line bounds
-            pad = 5
-            top = max(0, int(line.bounds.top) - pad)
-            bottom = min(image.shape[0], int(line.bounds.top + line.bounds.height) + pad)
-            left = max(0, int(line.bounds.left) - pad)
-            right = min(image.shape[1], int(line.bounds.left + line.bounds.width) + pad)
+                # Add light padding to line bounds
+                pad = 5
+                top = max(0, int(line.bounds.top) - pad)
+                bottom = min(image.shape[0], int(line.bounds.top + line.bounds.height) + pad)
+                left = max(0, int(line.bounds.left) - pad)
+                right = min(image.shape[1], int(line.bounds.left + line.bounds.width) + pad)
 
-            croped_image = image[top:bottom, left:right]
-            corrected_line = smart_line_correction(line, croped_image) 
-        else:
-            corrected_line = line
-        corrected_lines.append(corrected_line)
+                croped_image = image[top:bottom, left:right]
+                corrected_line = smart_line_correction(line, croped_image)
+                pbar.set_postfix_str(f"AI corrected")
+            else:
+                corrected_line = line
+                pbar.set_postfix_str(f"Skipped (conf: {line.avgConfidence:.0f}%)")
 
-
-
+            corrected_lines.append(corrected_line)
+            pbar.update(1)
 
     return corrected_lines

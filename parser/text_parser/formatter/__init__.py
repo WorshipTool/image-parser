@@ -3,12 +3,16 @@ import math
 from dataclasses import dataclass
 from statistics import median
 from typing import List
+import cv2
+import uuid
+from pathlib import Path
 
 from .sheet import Sheet
 from ..ocr.read_word_data import ReadWordData
 from .line import Line
 from .section import Section
 from .smart_line_correction import smart_lines_correction
+from ai import send_image_and_question
 
 def insert_str(string, str_to_insert, index):
     return string[:index] + str_to_insert + string[index:]
@@ -259,6 +263,229 @@ def get_title(titleData: list[ReadWordData]) -> str:
     title, sections = get_title_from_sections(sections)
     return title
 
+def _step1_ocr_cleanup(draft_song_text: str, image_path: str) -> dict:
+    """
+    STEP 1: OCR cleanup and chord validation using the image.
+
+    Args:
+        draft_song_text: Draft song sheet text
+        image_path: Path to the full song image
+
+    Returns:
+        Dictionary with 'title' and 'sheetData' keys
+    """
+    schema = {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string"},
+            "sheetData": {"type": "string"}
+        },
+        "required": ["title", "sheetData"],
+        "additionalProperties": False
+    }
+
+    prompt = (
+        "You are correcting OCR ERRORS in a SONG SHEET.\n"
+        "The IMAGE is the ONLY source of truth for text and chords.\n\n"
+
+        "SONG SHEET FORMAT:\n"
+        "- Lyrics contain inline chords in square brackets: [C], [Dm7], [F/A]\n"
+        "- Sections are marked with tags like {1S}, {2S}, {1R}, {I}, {B}, {O}\n\n"
+
+        "YOUR TASKS:\n\n"
+
+        "1) EXTRACT SONG TITLE\n"
+        "- Read the song title from the IMAGE.\n"
+        "- Return it EXACTLY as written (preserve diacritics and casing).\n\n"
+
+        "2) FIX OCR ERRORS IN LYRICS\n"
+        "- Correct typos, broken words, wrong letters.\n"
+        "- Fix diacritics and casing errors.\n"
+        "- Remove random symbols that don't belong to lyrics.\n"
+        "- Do NOT paraphrase or change meaning.\n\n"
+
+        "3) FIX CHORD SYMBOLS\n"
+        "- Valid chord characters: A–G, a–g, 0–9, #, b, /, +\n"
+        "- Fix obvious chord typos (e.g. Dmi7 → Dm7, Emi → Em).\n"
+        "- REMOVE chords with invalid characters.\n"
+        "- Do NOT add new chords.\n\n"
+
+        "4) PRESERVE STRUCTURE\n"
+        "- Keep ALL section tags EXACTLY AS THEY ARE.\n"
+        "- Do NOT rename, merge, split, or remove section tags.\n"
+        "- Keep line order and formatting unchanged.\n"
+        "- Only fix the TEXT and CHORDS.\n\n"
+
+        "CONSTRAINTS:\n"
+        "- Do NOT invent lyrics or chords.\n"
+        "- Do NOT analyze song structure.\n"
+        "- Do NOT reorder lines.\n"
+        "- When unsure, keep the original.\n\n"
+
+        "RETURN ONLY VALID JSON:\n"
+        "{\n"
+        "  \"title\": \"<exact song title from image>\",\n"
+        "  \"sheetData\": \"<corrected text with original section tags>\"\n"
+        "}\n\n"
+
+        "DRAFT SONG SHEET:\n"
+        f"{draft_song_text}"
+    )
+
+    result = send_image_and_question(image_path, prompt, json_schema=schema)
+
+    # Ensure result is a dict
+    if not isinstance(result, dict):
+        return {"title": "", "sheetData": draft_song_text}
+
+    return result
+
+
+def _step2_section_correction(cleaned_sheet_text: str) -> dict:
+    """
+    STEP 2: Section structure correction (text-only, no image).
+
+    Args:
+        cleaned_sheet_text: OCR-cleaned sheet from step 1
+
+    Returns:
+        Dictionary with 'sheetData' key
+    """
+    # Import here to avoid circular dependency
+    from ai import client
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "sheetData": {"type": "string"}
+        },
+        "required": ["sheetData"],
+        "additionalProperties": False
+    }
+
+    prompt = (
+        "You are correcting SECTION TAGS in a song sheet.\n"
+        "The text and chords are already correct. Focus ONLY on section structure.\n\n"
+
+        "SONG SHEET FORMAT:\n"
+        "- Lyrics contain inline chords: [C], [Dm7], [F/A]\n"
+        "- Sections are marked with tags:\n"
+        "  {1S}, {2S}, {3S}, ... = verses (stanzas)\n"
+        "  {1R}, {2R}, ... = choruses (refrains)\n"
+        "  {I} = Intro, {B} = Bridge, {O} = Outro\n\n"
+
+        "YOUR TASKS:\n\n"
+
+        "1) DETECT CHORUSES\n"
+        "- Find lyrical blocks that REPEAT (same or very similar lyrics).\n"
+        "- Mark them as {1R}, {2R}, {3R}, ...\n"
+        "- Choruses typically have the same melody and lyrics.\n\n"
+
+        "2) RENAME VERSES\n"
+        "- Rename non-chorus sections as {1S}, {2S}, {3S}, ... in order.\n"
+        "- Verses usually have different lyrics but similar structure.\n\n"
+
+        "3) DETECT INTRO/OUTRO\n"
+        "- Chord-only sections at the START → {I}\n"
+        "- Chord-only sections at the END → {O}\n\n"
+
+        "4) FIX SECTION BOUNDARIES\n"
+        "- Merge sections only if they clearly belong together.\n"
+        "- Split sections only if they're clearly different parts.\n"
+        "- Remove section tags only if the section is empty/invalid.\n\n"
+
+        "CONSTRAINTS:\n"
+        "- Do NOT change lyrics, chords, or line text.\n"
+        "- Do NOT reorder lines.\n"
+        "- ONLY change section tags: {1S}, {2S}, {1R}, {I}, {B}, {O}\n"
+        "- Keep the song's original flow and order.\n\n"
+
+        "RETURN ONLY VALID JSON:\n"
+        "{\n"
+        "  \"sheetData\": \"<same content with corrected section tags>\"\n"
+        "}\n\n"
+
+        "SONG SHEET:\n"
+        f"{cleaned_sheet_text}"
+    )
+
+    # Text-only call (no image)
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "section_correction",
+                "schema": schema
+            }
+        }
+    )
+
+    import json
+
+    ret = response.choices[0].message.content
+    if ret is None:
+        return {"sheetData": cleaned_sheet_text}
+
+    result = json.loads(ret)
+
+    # Ensure result is a dict
+    if not isinstance(result, dict):
+        return {"sheetData": cleaned_sheet_text}
+
+    return result
+
+
+def final_smart_ai_fix(draft_song_text: str, cropped_image_data) -> dict:
+    """
+    Apply final AI-based validation and correction to the full song sheet.
+
+    This function runs TWO SEPARATE AI STEPS:
+    1. OCR cleanup + chord validation (with image)
+    2. Section structure correction (text-only)
+
+    Args:
+        draft_song_text: The draft song sheet text in custom format
+        cropped_image_data: Full song page image (BGR format)
+
+    Returns:
+        Dictionary with 'title' and 'sheetData' keys
+    """
+    print("\n🔍 Step 1: OCR cleanup and chord validation...")
+
+    # Save image to temp folder
+    current_file = Path(__file__).resolve()
+    image_parser_root = current_file.parent.parent.parent.parent
+    temp_dir = image_parser_root / "temp" / "final_corrections"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
+    rand_suffix = uuid.uuid4().hex[:8]
+    output_path = temp_dir / f"full_song_{rand_suffix}.jpg"
+    cv2.imwrite(str(output_path), cropped_image_data)
+
+    try:
+        # STEP 1: OCR cleanup and chord validation (with image)
+        step1_result = _step1_ocr_cleanup(draft_song_text, str(output_path))
+        title = step1_result.get("title", "")
+        cleaned_text = step1_result.get("sheetData", draft_song_text)
+        print("✅ Step 1 completed")
+
+        # STEP 2: Section structure correction (text-only)
+        print("🔍 Step 2: Section structure correction...")
+        step2_result = _step2_section_correction(cleaned_text)
+        final_sheet_data = step2_result.get("sheetData", cleaned_text)
+        print("✅ Step 2 completed\n")
+
+        return {
+            "title": title,
+            "sheetData": final_sheet_data
+        }
+
+    except Exception as exc:
+        print(f"❌ Final AI correction failed: {exc}\n")
+        return {"title": "", "sheetData": draft_song_text}
+
 def format(dataData:list[ReadWordData], inputImagePath: str, cropedImageData) -> Sheet:
 
     title = get_title(dataData)
@@ -275,5 +502,12 @@ def format(dataData:list[ReadWordData], inputImagePath: str, cropedImageData) ->
 
     sections = split_lines_to_sections(lines)
     data = sections_to_formatted_string(sections)
-    
+
+    # Apply final AI-based validation and correction
+    corrected_result = final_smart_ai_fix(data, cropedImageData)
+    if corrected_result.get("title"):
+        title = corrected_result["title"]
+    if corrected_result.get("sheetData"):
+        data = corrected_result["sheetData"]
+
     return Sheet(title, data, inputImagePath, cropedImageData)

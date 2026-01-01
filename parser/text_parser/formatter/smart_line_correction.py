@@ -54,48 +54,54 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
             "required": ["words", "isChordLine"],
             "additionalProperties": False
         }
+        tokens_payload = [
+            {
+                "i": i,
+                
+                "x": w.bounds.left,
+                "y": w.bounds.top,
+                "w": w.bounds.width,
+                "h": w.bounds.height
+            }
+            for i, w in enumerate(line.words)
+        ]
+
         prompt = (
-            "IMPORTANT: The image is the ONLY source of truth. OCR tokens are unreliable.\n"
-            "Do NOT copy the input tokens just because they exist.\n\n"
+            "Read the line ONLY from the IMAGE.\n"
+            "Each output slot corresponds to ONE bounding box (bbox).\n"
+            "The OCR text is only a hint and may be wrong.\n\n"
 
-            "HARD OVERRIDE (use ONLY when truly empty/noise):\n"
-            "If the crop contains NO chord-like symbols at all (no A–G letters, no #/b, no /, no digits), "
-            "and it is only punctuation/quotes/diacritics/random strokes, then:\n"
-            "- set isChordLine = false\n"
-            "- return words as ALL empty strings \"\" (same length as input)\n\n"
-
-            "NOTE: A chord line may contain only 1–3 chords in the whole crop (e.g. just 'C' and 'Dm7'). "
-            "That still counts as a valid CHORD_LINE.\n\n"
-
-            "STEP 1 — Decide line type:\n"
-            "- isChordLine = true  → the image shows chord symbols (even if only a few)\n"
-            "- isChordLine = false → the image shows normal lyric text OR truly empty/noise-only line\n\n"
-
-            "STEP 2 — Return JSON with fields:\n"
+            "Return ONLY valid JSON with:\n"
             "- isChordLine (boolean)\n"
-            "- words: array of strings with EXACTLY the same length and order as the input\n\n"
+            "- words: array of strings, SAME length and order as input tokens\n\n"
 
-            "GENERAL RULES FOR words:\n"
-            "- Each item corresponds to the same position as the input token.\n"
-            "- If there is no meaningful token visible for that item, return \"\".\n"
-            "- NEVER invent text or chords.\n\n"
+            "BBOX RULES (critical):\n"
+            "- For each token i, look ONLY inside its bbox region.\n"
+            "- If that bbox contains no clear letter/chord (only commas, quotes, strokes), return \"\".\n"
+            "- Do NOT move text between boxes.\n\n"
 
-            "RULES IF isChordLine = true:\n"
-            "- Non-empty tokens MUST be valid chord symbols only.\n"
-            "- Remove punctuation/quotes from chord tokens (: , . ; \" “ ” ‘ ’ etc).\n"
-            "- If a token is not a valid chord after cleaning, return \"\".\n\n"
+            "Line type:\n"
+            "- isChordLine=true → only chord symbols are visible\n"
+            "- isChordLine=false → normal lyric words or empty/noise-only line\n\n"
 
-            "RULES IF isChordLine = false:\n"
-            "- Return normal lyric words only.\n"
-            "- Tokens that look like chords MUST be returned as \"\".\n\n"
+            "If isChordLine=true:\n"
+            "- Non-empty words[i] MUST be valid chord symbols (C, Dm7, G#dim, C/E, D7add9/F#).\n"
+            "- Remove ALL punctuation/quotes (: , . ; \" “ ” ‘ ’).\n"
+            "- If not a valid chord after cleaning → \"\".\n\n"
 
-            "STRICT CONSTRAINTS:\n"
-            "- Do NOT add, remove, split, or merge tokens.\n"
-            "- Do NOT change token order.\n"
-            "- Return ONLY valid JSON.\n\n"
+            "If isChordLine=false:\n"
+            "- Non-empty words[i] must be normal words.\n"
+            "- Chord-like tokens must be \"\".\n\n"
 
-            "Input OCR tokens:\n"
-            f"{json.dumps([w.text for w in line.words], ensure_ascii=False)}"
+            "If ALL bboxes contain only noise:\n"
+            "- isChordLine=false\n"
+            "- words = all \"\"\n\n"
+
+            "Do NOT invent text.\n"
+            "Do NOT change order or length.\n\n"
+
+            "Input tokens with bounding boxes:\n"
+            f"{json.dumps(tokens_payload, ensure_ascii=False)}"
         )
         result = send_image_and_question(str(output_path), prompt, json_schema=schema) or {}
         tokens = result.get("words", [])

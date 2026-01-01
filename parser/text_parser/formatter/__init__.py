@@ -114,7 +114,7 @@ def lines_to_formatted_string(lines: list[Line]) -> str:
 
     for lineIndex, line in enumerate(lines):
             isChord = line.chordLinePossibility>0.5
-            isAboveLyrics = lineIndex<len(lines)-1 and lines[lineIndex+1].chordLinePossibility<0.5
+            isAboveLyrics = lineIndex<len(lines)-1 and lines[lineIndex+1].chordLinePossibility<0.5 and len(lines[lineIndex+1].words) > 0
             isBelowChords = lineIndex>0 and lines[lineIndex-1].chordLinePossibility>0.5
 
             lineData = ""

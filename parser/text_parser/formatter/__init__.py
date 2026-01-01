@@ -365,40 +365,52 @@ def _step2_section_correction(cleaned_sheet_text: str) -> dict:
 
     prompt = (
         "You are correcting SECTION TAGS in a song sheet.\n"
-        "The text and chords are already correct. Focus ONLY on section structure.\n\n"
+        "The lyrics and chords are already correct. Focus ONLY on section structure.\n\n"
 
         "SONG SHEET FORMAT:\n"
         "- Lyrics contain inline chords: [C], [Dm7], [F/A]\n"
         "- Sections are marked with tags:\n"
         "  {1S}, {2S}, {3S}, ... = verses (stanzas)\n"
         "  {1R}, {2R}, ... = choruses (refrains)\n"
-        "  {I} = Intro, {B} = Bridge, {O} = Outro\n\n"
+        "  {I} = Intro, {O} = Outro\n"
+        "  {M} = Interlude / instrumental (chord-only block between sections)\n\n"
+
+        "CRITICAL TAG PLACEMENT RULE:\n"
+        "- A section tag may appear ONLY on the FIRST line of that section.\n"
+        "- All following lines in the same section MUST NOT start with a section tag.\n\n"
+
+        "CHORUS RULE (IMPORTANT):\n"
+        "- A chorus section MUST contain at least ONE lyric/text line.\n"
+        "- If a block contains ONLY chords (no normal words), it is NOT a chorus.\n"
+        "- Chord-only blocks between sections must be tagged as {M}, not {R}.\n\n"
 
         "YOUR TASKS:\n\n"
 
         "1) DETECT CHORUSES\n"
         "- Find lyrical blocks that REPEAT (same or very similar lyrics).\n"
-        "- Mark them as {1R}, {2R}, {3R}, ...\n"
-        "- Choruses typically have the same melody and lyrics.\n\n"
+        "- Mark them as {1R}, {2R}, ...\n"
+        "- Apply the tag ONLY on the first line of the block.\n\n"
 
         "2) RENAME VERSES\n"
-        "- Rename non-chorus sections as {1S}, {2S}, {3S}, ... in order.\n"
-        "- Verses usually have different lyrics but similar structure.\n\n"
+        "- Rename non-chorus lyric sections as {1S}, {2S}, {3S}, ... in order.\n"
+        "- Apply the tag ONLY on the first line of each verse.\n\n"
 
-        "3) DETECT INTRO/OUTRO\n"
-        "- Chord-only sections at the START → {I}\n"
-        "- Chord-only sections at the END → {O}\n\n"
+        "3) DETECT INTRO / OUTRO / INTERLUDES\n"
+        "- Chord-only section at the START → {I}\n"
+        "- Chord-only section at the END → {O}\n"
+        "- Chord-only section BETWEEN verses/choruses → {M}\n"
+        "- Apply the tag ONLY on the first line of the block.\n\n"
 
         "4) FIX SECTION BOUNDARIES\n"
         "- Merge sections only if they clearly belong together.\n"
-        "- Split sections only if they're clearly different parts.\n"
-        "- Remove section tags only if the section is empty/invalid.\n\n"
+        "- Split sections only if they are clearly different parts.\n"
+        "- Remove section tags only if the section is empty or invalid.\n\n"
 
         "CONSTRAINTS:\n"
         "- Do NOT change lyrics, chords, or line text.\n"
         "- Do NOT reorder lines.\n"
-        "- ONLY change section tags: {1S}, {2S}, {1R}, {I}, {B}, {O}\n"
-        "- Keep the song's original flow and order.\n\n"
+        "- ONLY change section tags and their placement.\n"
+        "- Preserve the original flow of the song.\n\n"
 
         "RETURN ONLY VALID JSON:\n"
         "{\n"
@@ -423,6 +435,14 @@ def _step2_section_correction(cleaned_sheet_text: str) -> dict:
     )
 
     import json
+    from ai import _track_usage, _total_cost_czk
+
+    # Track usage and cost
+    if response.usage:
+        input_tokens = response.usage.prompt_tokens
+        output_tokens = response.usage.completion_tokens
+        cost_czk = _track_usage(input_tokens, output_tokens)
+        print(f"💰 AI call cost: {cost_czk:.4f} Kč (in: {input_tokens}, out: {output_tokens}) | Total: {_total_cost_czk:.4f} Kč")
 
     ret = response.choices[0].message.content
     if ret is None:
@@ -475,7 +495,12 @@ def final_smart_ai_fix(draft_song_text: str, cropped_image_data) -> dict:
         print("🔍 Step 2: Section structure correction...")
         step2_result = _step2_section_correction(cleaned_text)
         final_sheet_data = step2_result.get("sheetData", cleaned_text)
-        print("✅ Step 2 completed\n")
+        print("✅ Step 2 completed")
+
+        # Print total cost summary
+        from ai import get_price
+        price_info = get_price()
+        print(f"\n💵 Total AI cost: {price_info['cost_czk_formatted']} ({price_info['total_tokens']} tokens)\n")
 
         return {
             "title": title,

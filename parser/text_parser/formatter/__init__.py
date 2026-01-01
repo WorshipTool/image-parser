@@ -491,11 +491,11 @@ def final_smart_ai_fix(draft_song_text: str, cropped_image_data) -> dict:
         cleaned_text = step1_result.get("sheetData", draft_song_text)
         print("✅ Step 1 completed")
 
-        # STEP 2: Section structure correction (text-only)
-        print("🔍 Step 2: Section structure correction...")
-        step2_result = _step2_section_correction(cleaned_text)
-        final_sheet_data = step2_result.get("sheetData", cleaned_text)
-        print("✅ Step 2 completed")
+        # # STEP 2: Section structure correction (text-only)
+        # print("🔍 Step 2: Section structure correction...")
+        # step2_result = _step2_section_correction(cleaned_text)
+        # final_sheet_data = step2_result.get("sheetData", cleaned_text)
+        # print("✅ Step 2 completed")
 
         # Print total cost summary
         from ai import get_price
@@ -504,7 +504,7 @@ def final_smart_ai_fix(draft_song_text: str, cropped_image_data) -> dict:
 
         return {
             "title": title,
-            "sheetData": final_sheet_data
+            "sheetData": cleaned_text
         }
 
     except Exception as exc:

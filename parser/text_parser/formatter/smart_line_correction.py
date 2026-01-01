@@ -52,74 +52,88 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
         schema = {
             "type": "object",
             "properties": {
-                "words": {
+                "isChordLine": {"type": "boolean"},
+                "tokens": {
                     "type": "array",
-                    "items": {"type": "string"}
-                },
-                "isChordLine": {"type": "boolean"}
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "text": {"type": "string"},
+                            "x": {"type": "number"},
+                            "y": {"type": "number"},
+                            "w": {"type": "number"},
+                            "h": {"type": "number"}
+                        },
+                        "required": ["text", "x", "y", "w", "h"],
+                        "additionalProperties": False
+                    }
+                }
             },
-            "required": ["words", "isChordLine"],
+            "required": ["isChordLine", "tokens"],
             "additionalProperties": False
         }
-        tokens_payload = [
-            {
-                "i": i,
-                
-                "x": w.bounds.left,
-                "y": w.bounds.top,
-                "w": w.bounds.width,
-                "h": w.bounds.height
-            }
-            for i, w in enumerate(line.words)
-        ]
-
         prompt = (
-            "Read the line ONLY from the IMAGE.\n"
-            "Each output slot corresponds to ONE bounding box (bbox).\n"
-            "The OCR text is only a hint and may be wrong.\n\n"
+            "Read the line ONLY from the IMAGE and output the TRUE tokens with approximate bounding boxes.\n"
+            "This is a CHORD LINE or a TEXT LINE (never mixed).\n\n"
 
-            "Return ONLY valid JSON with:\n"
-            "- isChordLine (boolean)\n"
-            "- words: array of strings, SAME length and order as input tokens\n\n"
+            "Return ONLY valid JSON:\n"
+            "{ \"isChordLine\": <bool>, \"tokens\": [ {\"text\": str, \"x\": num, \"y\": num, \"w\": num, \"h\": num} ] }\n\n"
 
-            "BBOX RULES (critical):\n"
-            "- For each token i, look ONLY inside its bbox region.\n"
-            "- If that bbox contains no clear letter/chord (only commas, quotes, strokes), return \"\".\n"
-            "- Do NOT move text between boxes.\n\n"
+            "GENERAL RULES:\n"
+            "- Output tokens in left-to-right order.\n"
+            "- Do NOT invent text.\n"
+            "- Do NOT output punctuation-only tokens.\n"
+            "- If the line is only noise (commas/quotes/strokes), return isChordLine=false and tokens=[].\n\n"
 
-            "Line type:\n"
-            "- isChordLine=true → only chord symbols are visible\n"
-            "- isChordLine=false → normal lyric words or empty/noise-only line\n\n"
+            "LINE TYPE:\n"
+            "- isChordLine=true  -> chords only\n"
+            "- isChordLine=false -> lyric words only\n\n"
 
-            "If isChordLine=true:\n"
-            "- Non-empty words[i] MUST be valid chord symbols (C, Dm7, G#dim, C/E, D7add9/F#).\n"
-            "- Remove ALL punctuation/quotes (: , . ; \" “ ” ‘ ’).\n"
-            "- If not a valid chord after cleaning → \"\".\n\n"
+            "VALID CHORD DEFINITION (MUST PASS):\n"
+            "- A valid chord token must have EXACTLY ONE root note.\n"
+            "- Root note: A, B, C, D, E, F, or G (optionally followed by # or b).\n"
+            "- Optional quality/suffix: m, maj, min, dim, aug, sus, add.\n"
+            "- Optional extensions: digits like 2,4,5,6,7,9,11,13.\n"
+            "- Optional slash bass: /A.. /G with optional # or b.\n"
+            "- Allowed characters in chord token: A-G a-g 0-9 # b / +.\n"
+            "- Any other character (quotes, commas, dots, colons, weird symbols) makes it INVALID unless removed.\n\n"
 
-            "If isChordLine=false:\n"
-            "- Non-empty words[i] must be normal words.\n"
-            "- Chord-like tokens must be \"\".\n\n"
+            "CHORD LINE RULES (isChordLine=true) — CRITICAL:\n"
+            "1) EACH returned token MUST be ONE valid chord (per definition above).\n"
+            "2) A token MUST NOT contain two roots combined (examples of INVALID: 'EC', 'CA', 'GD', 'E C', 'C/A G').\n"
+            "3) If you see two chords close together, you MUST output TWO tokens with TWO separate bboxes.\n"
+            "4) If you cannot confidently split them, OMIT them (better empty than wrong).\n"
+            "5) Before outputting, CHECK validity. If invalid, either split into multiple valid chords or omit.\n\n"
 
-            "If ALL bboxes contain only noise:\n"
-            "- isChordLine=false\n"
-            "- words = all \"\"\n\n"
+            "TEXT LINE RULES (isChordLine=false):\n"
+            "- Output only normal words.\n"
+            "- Do NOT output chord-like tokens.\n\n"
 
-            "Do NOT invent text.\n"
-            "Do NOT change order or length.\n\n"
-
-            "Input tokens with bounding boxes:\n"
-            f"{json.dumps(tokens_payload, ensure_ascii=False)}"
+            "Return ONLY JSON. No extra text."
         )
+
         result = send_image_and_question(str(output_path), prompt, json_schema=schema) or {}
-        tokens = result.get("words", [])
+        tokens = result.get("tokens", [])
 
         if tokens:
-            min_len = min(len(tokens), len(line.words))
-            for word, token in zip(line.words, tokens[:min_len]):
-                word.text = token
+            # Import ReadWordData and Bounds
+            from ..ocr.read_word_data import ReadWordData, Bounds
 
-            if len(tokens) > len(line.words):
-                line.words[-1].text += " " + " ".join(tokens[len(line.words):])
+            # Replace line words with AI-detected tokens
+            line.words = []
+            for token in tokens:
+                bounds = Bounds(
+                    left=float(token.get("x", 0)),
+                    top=float(token.get("y", 0)),
+                    width=float(token.get("w", 0)),
+                    height=float(token.get("h", 0))
+                )
+                word = ReadWordData(
+                    text=token.get("text", ""),
+                    bounds=bounds,
+                    confidence=100.0
+                )
+                line.words.append(word)
 
             line.avgConfidence = 100.0
             line.chordLinePossibility = 1.0 if result.get("isChordLine") else 0.0

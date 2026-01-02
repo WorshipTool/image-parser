@@ -24,11 +24,11 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
     Apply smart corrections to a single line
 
     Args:
-        line: Line object to correct
+        line: Line object to correct (with words in local cropped image coordinates)
         image: Cropped line image (BGR format)
 
     Returns:
-        Corrected Line object
+        Corrected Line object (with words in local cropped image coordinates)
     """
     global _line_counter
 
@@ -46,6 +46,21 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
 
     output_path = temp_dir / f"line_{counter_value:04d}_{rand_suffix}.jpg"
     cv2.imwrite(str(output_path), image)
+
+    # Get image dimensions for relative coordinates
+    img_height, img_width = image.shape[:2]
+
+    # Convert current OCR bounding boxes to relative coordinates (already in local space)
+    ocr_tokens = []
+    for word in line.words:
+        ocr_tokens.append({
+            "text": word.text,
+            "x": round(word.bounds.left / img_width, 3),
+            "y": round(word.bounds.top / img_height, 3),
+            "w": round(word.bounds.width / img_width, 3),
+            "h": round(word.bounds.height / img_height, 3),
+            "confidence": round(word.confidence, 2)
+        })
 
     #TODO: its not necessary to save image to disk, can be sent as 64 string directly
     try:
@@ -72,12 +87,30 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
             "required": ["isChordLine", "tokens"],
             "additionalProperties": False
         }
+        import json
+        ocr_tokens_str = json.dumps(ocr_tokens, ensure_ascii=False)
+
         prompt = (
             "Read the line ONLY from the IMAGE and output the TRUE tokens with approximate bounding boxes.\n"
             "This is a CHORD LINE or a TEXT LINE (never mixed).\n\n"
 
             "Return ONLY valid JSON:\n"
             "{ \"isChordLine\": <bool>, \"tokens\": [ {\"text\": str, \"x\": num, \"y\": num, \"w\": num, \"h\": num} ] }\n\n"
+
+            "BOUNDING BOX FORMAT (IMPORTANT):\n"
+            "- ALL coordinates must be RELATIVE (0.0 to 1.0), not pixels!\n"
+            "- x: left position (0.0 = left edge, 1.0 = right edge)\n"
+            "- y: top position (0.0 = top edge, 1.0 = bottom edge)\n"
+            "- w: width (0.0 to 1.0 of image width)\n"
+            "- h: height (0.0 to 1.0 of image height)\n"
+            "- Example: {\"text\": \"Hello\", \"x\": 0.1, \"y\": 0.3, \"w\": 0.2, \"h\": 0.4}\n\n"
+
+            f"OCR DETECTED TOKENS (with relative coordinates and confidence):\n"
+            f"{ocr_tokens_str}\n\n"
+
+            "NOTE: OCR results may contain errors (typos, split words, wrong spacing, low confidence).\n"
+            "Your job is to read the ACTUAL TEXT from the IMAGE and return corrected tokens.\n"
+            "Use OCR results as a HINT for approximate positions, but trust the IMAGE for the actual text.\n\n"
 
             "GENERAL RULES:\n"
             "- Output tokens in left-to-right order.\n"
@@ -122,23 +155,20 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
 
         if tokens:
             # Import ReadWordData and Bounds
-            from ..ocr.read_word_data import ReadWordData, Bounds
+            from ..ocr.read_word_data import ReadWordData
+            from common.bounds import Bounds
 
-            # Replace line words with AI-detected tokens
+            # Replace line words with AI-detected tokens (in local coordinates)
             line.words = []
             for token in tokens:
+                # Convert relative coordinates (0-1) to absolute pixels in local cropped image
                 bounds = Bounds(
-                    left=float(token.get("x", 0)),
-                    top=float(token.get("y", 0)),
-                    width=float(token.get("w", 0)),
-                    height=float(token.get("h", 0))
+                    left=token.get("x", 0) * img_width,
+                    top=token.get("y", 0) * img_height,
+                    width=token.get("w", 0) * img_width,
+                    height=token.get("h", 0) * img_height
                 )
-                word = ReadWordData(
-                    text=token.get("text", ""),
-                    bounds=bounds,
-                    confidence=100.0
-                )
-                line.words.append(word)
+                line.words.append(ReadWordData(token.get("text", ""), bounds, token.get("confidence", 100.0)))
 
             line.avgConfidence = 100.0
             line.chordLinePossibility = 1.0 if result.get("isChordLine") else 0.0
@@ -168,8 +198,7 @@ def smart_lines_correction(lines: List[Line], image: np.ndarray, max_workers: in
         """Process a single line and return its index and result"""
         should_correct = line.avgConfidence < 94 or line.chordLinePossibility > 0.4
         if should_correct:
-            # Crop image to line bounds
-            # Add light padding to line bounds
+            # Crop image to line bounds with padding
             pad = 5
             top = max(0, int(line.bounds.top) - pad)
             bottom = min(image.shape[0], int(line.bounds.top + line.bounds.height) + pad)
@@ -177,7 +206,25 @@ def smart_lines_correction(lines: List[Line], image: np.ndarray, max_workers: in
             right = min(image.shape[1], int(line.bounds.left + line.bounds.width) + pad)
 
             croped_image = image[top:bottom, left:right]
-            corrected_line = smart_line_correction(line, croped_image)
+
+            # Convert line words to local coordinates before correction
+            from ..ocr.read_word_data import ReadWordData
+            from common.bounds import Bounds
+            from copy import deepcopy
+
+            local_line = deepcopy(line)
+            for word in local_line.words:
+                word.bounds.left -= left
+                word.bounds.top -= top
+
+            # Apply AI correction (works with local coordinates)
+            corrected_line = smart_line_correction(local_line, croped_image)
+
+            # Convert back to global coordinates
+            for word in corrected_line.words:
+                word.bounds.left += left
+                word.bounds.top += top
+
             return (index, corrected_line, True)
         else:
             return (index, line, False)

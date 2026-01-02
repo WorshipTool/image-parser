@@ -526,8 +526,8 @@ def format(dataData:list[ReadWordData], inputImagePath: str, cropedImageData) ->
     save_lines_visualization(cropedImageData, lines, dataData)
 
     # Print lines
-    for line in lines:
-        print(f"[{line.avgConfidence, line.chordLinePossibility}] {[word.text for word in line.words]}")
+    # for line in lines:
+    #     print(f"[{line.avgConfidence, line.chordLinePossibility}] {[word.text for word in line.words]}")
 
     sections = split_lines_to_sections(lines)
     data = sections_to_formatted_string(sections)

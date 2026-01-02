@@ -8,6 +8,6 @@ def read(image):
     formatted = ReadFormatConverter.convert_to_custom_format(result)
 
     #Filter out words with low confidence
-    formatted = [word for word in formatted if word.confidence >= 45]
+    formatted = [word for word in formatted if word.confidence >= 5]
 
     return formatted

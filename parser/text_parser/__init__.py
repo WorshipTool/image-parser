@@ -76,8 +76,9 @@ def read_and_parse_image(
         print(f"Reading text from image: {image_bgr.shape[1]}x{image_bgr.shape[0]}")
 
     # Preprocess image
-    image_bgr = preprocess(image_bgr)
+    image_bgr = preprocess(image_bgr, debug=debug)
 
+    
     # Run OCR
     try:
         word_data = ocr_read(image_bgr)

@@ -98,7 +98,7 @@ def read_and_parse_image(
     try:
         # Use the same data for both title and content parsing
         # formatter.format() will extract title from first lines
-        sheet = format_sheet( word_data, image_path, image_bgr)
+        sheet = format_sheet( word_data, image_path, image_bgr, debug=debug)
 
         if debug:
             print(f"  ✓ Parsed title: {sheet.title}")

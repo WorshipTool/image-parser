@@ -148,16 +148,14 @@ def get_sheet_components_from_image(
     should_crop = detection_result['shouldCrop']
     corners = detection_result['corners']
 
-    # If no paper detected, likely a screenshot - use sheet detection
-    if not should_crop:
-        if debug:
-            rejection_reason = detection_result['debug']['heatmap_analysis'].get('rejection_reason', 'unknown')
-            print(f"✗ No paper detected: {rejection_reason}")
-            print(f"→ Trying sheet detection (likely screenshot)...")
 
-        # Detect and merge sheets
-        cropped = _detect_and_merge_sheets(image_bgr, debug=debug)
-        return [cropped]
+
+    # If no paper detected, likely a screenshot - just return
+    if not should_crop:
+        image_bgr = _detect_and_merge_sheets(image_bgr, debug=debug)
+        return [image_bgr]
+    
+
 
     # Step 2: Perspective Correction
     try:

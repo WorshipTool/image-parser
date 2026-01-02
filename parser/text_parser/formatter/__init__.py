@@ -512,7 +512,7 @@ def final_smart_ai_fix(draft_song_text: str, cropped_image_data) -> dict:
         print(f"❌ Final AI correction failed: {exc}\n")
         return {"title": "", "sheetData": draft_song_text}
 
-def format(dataData:list[ReadWordData], inputImagePath: str, cropedImageData) -> Sheet:
+def format(dataData:list[ReadWordData], inputImagePath: str, cropedImageData, debug: bool = False) -> Sheet:
 
     title = get_title(dataData)
 
@@ -523,7 +523,8 @@ def format(dataData:list[ReadWordData], inputImagePath: str, cropedImageData) ->
     # lines = smart_lines_correction(lines, cropedImageData)
 
     # Save visualization of corrected lines with raw OCR data
-    save_lines_visualization(cropedImageData, lines, dataData)
+    if debug:
+        save_lines_visualization(cropedImageData, lines, dataData)
 
     # Print lines
     # for line in lines:

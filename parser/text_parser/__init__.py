@@ -13,6 +13,8 @@ from typing import Optional, Union
 from pathlib import Path
 import cv2
 
+from parser.text_parser.preprocess import preprocess
+
 # Add parent directories to path for common module access
 _current_dir = Path(__file__).parent
 _parser_dir = _current_dir.parent
@@ -72,6 +74,9 @@ def read_and_parse_image(
 
     if debug:
         print(f"Reading text from image: {image_bgr.shape[1]}x{image_bgr.shape[0]}")
+
+    # Preprocess image
+    image_bgr = preprocess(image_bgr)
 
     # Run OCR
     try:

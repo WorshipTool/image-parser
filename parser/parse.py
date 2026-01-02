@@ -55,8 +55,8 @@ Examples:
     parser.add_argument(
         '-o', '--output',
         type=str,
-        default='.',
-        help='Output directory (default: current directory)'
+        default='temp',
+        help='Output directory (default: temp)'
     )
     parser.add_argument(
         '-d', '--debug',

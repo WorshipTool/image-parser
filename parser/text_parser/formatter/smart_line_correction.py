@@ -4,7 +4,6 @@ Smart line correction module
 Applies intelligent corrections to detected lines before formatting.
 """
 from typing import List
-import json
 import numpy as np
 import cv2
 from pathlib import Path
@@ -18,6 +17,7 @@ import threading
 # Counter for unique line image filenames (thread-safe)
 _line_counter = 0
 _counter_lock = threading.Lock()
+
 
 def smart_line_correction(line: Line, image: np.ndarray) -> Line:
     """
@@ -91,10 +91,13 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
 
             "VALID CHORD DEFINITION (MUST PASS):\n"
             "- A valid chord token must have EXACTLY ONE root note.\n"
-            "- Root note: A, B, C, D, E, F, or G (optionally followed by # or b).\n"
+            "- Root note: A-G (uppercase) or a-g (lowercase).\n"
+            "  IMPORTANT: Lowercase a-g are VALID chord roots indicating minor chords!\n"
+            "  Examples: 'd' = D minor, 'a' = A minor, 'C' = C major, 'G' = G major\n"
+            "- Optionally followed by # or b (sharp/flat).\n"
             "- Optional quality/suffix: m, maj, min, dim, aug, sus, add.\n"
             "- Optional extensions: digits like 2,4,5,6,7,9,11,13.\n"
-            "- Optional slash bass: /A.. /G with optional # or b.\n"
+            "- Optional slash bass: /A-G or /a-g with optional # or b.\n"
             "- Allowed characters in chord token: A-G a-g 0-9 # b / +.\n"
             "- Any other character (quotes, commas, dots, colons, weird symbols) makes it INVALID unless removed.\n\n"
 
@@ -103,11 +106,13 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
             "2) A token MUST NOT contain two roots combined (examples of INVALID: 'EC', 'CA', 'GD', 'E C', 'C/A G').\n"
             "3) If you see two chords close together, you MUST output TWO tokens with TWO separate bboxes.\n"
             "4) If you cannot confidently split them, OMIT them (better empty than wrong).\n"
-            "5) Before outputting, CHECK validity. If invalid, either split into multiple valid chords or omit.\n\n"
+            "5) Before outputting, CHECK validity. If invalid, either split into multiple valid chords or omit.\n"
+            "6) CONTEXT CLUE: If a line contains ONLY single letters (a-g, A-G) with optional modifiers (#/b/m/7/etc),\n"
+            "   it is HIGHLY LIKELY a chord line, not text. Example: 'd C a d' = valid chord progression.\n\n"
 
             "TEXT LINE RULES (isChordLine=false):\n"
-            "- Output only normal words.\n"
-            "- Do NOT output chord-like tokens.\n\n"
+            "- Output only normal words (multiple characters forming meaningful words).\n"
+            "- Isolated single letters (a-g, A-G) are almost always CHORDS, not text words.\n\n"
 
             "Return ONLY JSON. No extra text."
         )
@@ -137,10 +142,10 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
 
             line.avgConfidence = 100.0
             line.chordLinePossibility = 1.0 if result.get("isChordLine") else 0.0
-    except Exception as exc:  # Keep original line on AI failure
+    except Exception:  # Keep original line on AI failure
         pass  # Silently skip failed corrections
 
-    
+
     # Filter out empty words
     line.words = [word for word in line.words if word.text.strip() != ""]
 
@@ -161,7 +166,7 @@ def smart_lines_correction(lines: List[Line], image: np.ndarray, max_workers: in
     """
     def process_line(index: int, line: Line) -> tuple[int, Line]:
         """Process a single line and return its index and result"""
-        should_correct = line.avgConfidence < 94 or line.chordLinePossibility > 0.5
+        should_correct = line.avgConfidence < 94 or line.chordLinePossibility > 0.4
         if should_correct:
             # Crop image to line bounds
             # Add light padding to line bounds

@@ -12,6 +12,7 @@ from ..ocr.read_word_data import ReadWordData
 from .line import Line
 from .section import Section
 from .smart_line_correction import smart_lines_correction
+from .utils import save_lines_visualization
 from ai import send_image_and_question
 
 def insert_str(string, str_to_insert, index):
@@ -519,7 +520,10 @@ def format(dataData:list[ReadWordData], inputImagePath: str, cropedImageData) ->
     lines = read_word_list_to_lines(dataData)
 
     # Apply smart corrections
-    lines = smart_lines_correction(lines, cropedImageData)
+    # lines = smart_lines_correction(lines, cropedImageData)
+
+    # Save visualization of corrected lines with raw OCR data
+    save_lines_visualization(cropedImageData, lines, dataData)
 
     # Print lines
     for line in lines:

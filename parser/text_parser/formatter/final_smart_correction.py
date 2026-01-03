@@ -10,7 +10,7 @@ using AI. It runs in two steps:
 import cv2
 import uuid
 from pathlib import Path
-from ai import send_image_and_question
+from ai import send_prompt_with_schema
 
 
 def _step1_ocr_cleanup(draft_song_text: str, image_path: str) -> dict:
@@ -34,7 +34,7 @@ def _step1_ocr_cleanup(draft_song_text: str, image_path: str) -> dict:
         "additionalProperties": False
     }
 
-    prompt = (
+    system_prompt = (
         "You are correcting OCR ERRORS in a SONG SHEET.\n"
         "The IMAGE is the ONLY source of truth for text and chords.\n\n"
 
@@ -89,13 +89,18 @@ def _step1_ocr_cleanup(draft_song_text: str, image_path: str) -> dict:
         "{\n"
         "  \"title\": \"<exact song title from image>\",\n"
         "  \"sheetData\": \"<corrected text with section tags applied>\"\n"
-        "}\n\n"
-
-        "DRAFT SONG SHEET:\n"
-        f"{draft_song_text}"
+        "}"
     )
 
-    result = send_image_and_question(image_path, prompt, json_schema=schema)
+    user_prompt = f"DRAFT SONG SHEET:\n{draft_song_text}"
+
+    result = send_prompt_with_schema(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        json_schema=schema,
+        image_path=image_path,
+        schema_name="ocr_cleanup"
+    )
 
     # Ensure result is a dict
     if not isinstance(result, dict):
@@ -109,14 +114,12 @@ def _step2_section_correction(sheetData: str, title: str) -> dict:
     STEP 2: Section structure correction (text-only, no image).
 
     Args:
-        cleaned_sheet_text: OCR-cleaned sheet from step 1
+        sheetData: OCR-cleaned sheet from step 1
+        title: Song title from step 1
 
     Returns:
-        Dictionary with 'sheetData' key
+        Dictionary with 'sheetData' and 'title' keys
     """
-    # Import here to avoid circular dependency
-    from ai import client
-
     schema = {
         "type": "object",
         "properties": {
@@ -127,15 +130,11 @@ def _step2_section_correction(sheetData: str, title: str) -> dict:
         "additionalProperties": False
     }
 
-    prompt = (
+    system_prompt = (
         "You are a strict SONG SHEET NORMALIZER.\n"
         "Input is an already-parsed song in a custom format, but it may contain OCR noise.\n"
         "Your job is to make the sheetData CLEAN, CONSISTENT, and MEANINGFUL.\n"
         "Every character must have a purpose; otherwise remove it.\n\n"
-
-        "INPUTS:\n"
-        "- title: the song title (already extracted)\n"
-        "- sheetData: the song content\n\n"
 
         "SHEET FORMAT RULES:\n"
         "- Inline chords are in square brackets ONLY: [C], [Dm7], [F/A]\n"
@@ -183,7 +182,7 @@ def _step2_section_correction(sheetData: str, title: str) -> dict:
         "- Use {B} only if there is a clearly distinct lyrical/musical bridge.\n\n"
 
         "TITLE RULES:\n"
-        "- The title MUST be returned exactly as given in the input field `title`.\n"
+        "- The title MUST be returned exactly as given in the input.\n"
         "- The title MUST NOT appear as the first line of {1S} (or any section).\n"
         "- If the title line exists inside sheetData, remove that line from sheetData.\n\n"
 
@@ -198,42 +197,21 @@ def _step2_section_correction(sheetData: str, title: str) -> dict:
         "{\n"
         "  \"title\": \"<same as input title>\",\n"
         "  \"sheetData\": \"<cleaned and section-corrected sheetData>\"\n"
-        "}\n\n"
-
-        "INPUT TITLE:\n"
-        f"{title}\n\n"
-        "INPUT SHEETDATA:\n"
-        f"{sheetData}"
+        "}"
     )
 
-    # Text-only call (no image)
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "section_correction",
-                "schema": schema
-            }
-        }
+    user_prompt = (
+        f"INPUT TITLE:\n{title}\n\n"
+        f"INPUT SHEETDATA:\n{sheetData}"
     )
 
-    import json
-    from ai import _track_usage, _total_cost_czk
-
-    # Track usage and cost
-    if response.usage:
-        input_tokens = response.usage.prompt_tokens
-        output_tokens = response.usage.completion_tokens
-        cost_czk = _track_usage(input_tokens, output_tokens)
-        print(f"💰 AI call cost: {cost_czk:.4f} Kč (in: {input_tokens}, out: {output_tokens}) | Total: {_total_cost_czk:.4f} Kč")
-
-    ret = response.choices[0].message.content
-    if ret is None:
-        return {"sheetData": sheetData, "title": title}
-
-    result = json.loads(ret)
+    result = send_prompt_with_schema(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        json_schema=schema,
+        image_path=None,  # No image for step 2
+        schema_name="section_correction"
+    )
 
     # Ensure result is a dict
     if not isinstance(result, dict):

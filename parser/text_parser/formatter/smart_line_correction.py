@@ -7,7 +7,7 @@ from typing import List
 import numpy as np
 import cv2
 from pathlib import Path
-from ai import send_image_and_question
+from ai import send_prompt_with_schema
 from .line import Line
 import uuid
 from tqdm import tqdm
@@ -90,11 +90,12 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
         import json
         ocr_tokens_str = json.dumps(ocr_tokens, ensure_ascii=False)
 
-        prompt = (
-            "Read the line ONLY from the IMAGE and output the TRUE tokens with approximate bounding boxes.\n"
-            "This is a CHORD LINE or a TEXT LINE (never mixed).\n\n"
+        system_prompt = (
+            "You are a smart OCR corrector for song sheets.\n"
+            "Read the line from the IMAGE and output the TRUE tokens with approximate bounding boxes.\n"
+            "Each line is either a CHORD LINE or a TEXT LINE (never mixed).\n\n"
 
-            "Return ONLY valid JSON:\n"
+            "RETURN FORMAT:\n"
             "{ \"isChordLine\": <bool>, \"tokens\": [ {\"text\": str, \"x\": num, \"y\": num, \"w\": num, \"h\": num} ] }\n\n"
 
             "BOUNDING BOX FORMAT (IMPORTANT):\n"
@@ -104,13 +105,6 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
             "- w: width (0.0 to 1.0 of image width)\n"
             "- h: height (0.0 to 1.0 of image height)\n"
             "- Example: {\"text\": \"Hello\", \"x\": 0.1, \"y\": 0.3, \"w\": 0.2, \"h\": 0.4}\n\n"
-
-            f"OCR DETECTED TOKENS (with relative coordinates and confidence):\n"
-            f"{ocr_tokens_str}\n\n"
-
-            "NOTE: OCR results may contain errors (typos, split words, wrong spacing, low confidence).\n"
-            "Your job is to read the ACTUAL TEXT from the IMAGE and return corrected tokens.\n"
-            "Use OCR results as a HINT for approximate positions, but trust the IMAGE for the actual text.\n\n"
 
             "GENERAL RULES:\n"
             "- Output tokens in left-to-right order.\n"
@@ -147,10 +141,25 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
             "- Output only normal words (multiple characters forming meaningful words).\n"
             "- Isolated single letters (a-g, A-G) are almost always CHORDS, not text words.\n\n"
 
-            "Return ONLY JSON. No extra text."
+            "Return ONLY valid JSON. No extra text."
         )
 
-        result = send_image_and_question(str(output_path), prompt, json_schema=schema) or {}
+        user_prompt = (
+            f"OCR DETECTED TOKENS (with relative coordinates and confidence):\n"
+            f"{ocr_tokens_str}\n\n"
+
+            "NOTE: OCR results may contain errors (typos, split words, wrong spacing, low confidence).\n"
+            "Your job is to read the ACTUAL TEXT from the IMAGE and return corrected tokens.\n"
+            "Use OCR results as a HINT for approximate positions, but trust the IMAGE for the actual text."
+        )
+
+        result = send_prompt_with_schema(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            json_schema=schema,
+            image_path=str(output_path),
+            schema_name="line_correction"
+        ) or {}
         tokens = result.get("tokens", [])
 
         if tokens:

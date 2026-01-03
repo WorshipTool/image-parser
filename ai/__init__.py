@@ -168,37 +168,63 @@ def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
-# Funkce pro odeslání obrázku a dotazu na OpenAI API
-def send_image_and_question(image_path, question, json_schema):
-    base64_image = encode_image(image_path)
-    kwargs = {
-        "model": "gpt-4o-mini",
-        "messages": [
+
+def send_prompt_with_schema(
+    system_prompt: str,
+    user_prompt: str,
+    json_schema: dict,
+    image_path: str = None,
+    schema_name: str = "response"
+) -> Any:
+    """
+    Send a prompt to OpenAI with optional image and JSON schema response format.
+
+    Args:
+        system_prompt: System instructions (rules, constraints, etc.)
+        user_prompt: User message (task description, data to process, etc.)
+        json_schema: JSON schema for structured response
+        image_path: Optional path to image file
+        schema_name: Name for the JSON schema (default: "response")
+
+    Returns:
+        Parsed and normalized JSON response
+    """
+    messages = [
+        {"role": "system", "content": system_prompt}
+    ]
+
+    # Build user message
+    if image_path:
+        base64_image = encode_image(image_path)
+        user_content = [
+            {"type": "text", "text": user_prompt},
             {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": question},
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{base64_image}"
-                        },
-                    },
-                ],
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{base64_image}"
+                }
             }
-        ],
-        "response_format": {
+        ]
+    else:
+        user_content = user_prompt
+
+    messages.append({
+        "role": "user",
+        "content": user_content
+    })
+
+    # Call OpenAI API
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages,
+        response_format={
             "type": "json_schema",
             "json_schema": {
-                "name": "image_response",
-                "schema": json_schema,
-        },
-    }
-
-    }
-
-
-    response = client.chat.completions.create(**kwargs)
+                "name": schema_name,
+                "schema": json_schema
+            }
+        }
+    )
 
     # Track usage and cost
     if response.usage:
@@ -213,7 +239,6 @@ def send_image_and_question(image_path, question, json_schema):
         raise ValueError("No response from OpenAI API.")
 
     return normalize_ai_result(json.loads(ret))
-
 
 def fix_json_input(malformed_json_string):
     # Odstranění přebytečných čárek před uzavíracími závorkami

@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # Redis database for job queue
+  redis:
+    image: redis:7-alpine
+    container_name: image-parser-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Flask API server
+  server:
+    build: .
+    container_name: image-parser-server
+    ports:
+      - "${PORT:-6610}:6610"
+    environment:
+      - PORT=6610
+      - HOST=0.0.0.0
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - BRIDGE_URL=${BRIDGE_URL:-}
+      - BRIDGE_SERVICE_NAME=${BRIDGE_SERVICE_NAME:-docker-parser}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./temp:/app/temp
+      - ./parser:/app/parser
+      - ./server:/app/server
+      - ./ai:/app/ai
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    command: python -m server
+
+  # RQ Worker for background job processing
+  worker:
+    build: .
+    container_name: image-parser-worker
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./temp:/app/temp
+      - ./parser:/app/parser
+      - ./server:/app/server
+      - ./ai:/app/ai
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    command: python -m server.worker
+
+volumes:
+  redis-data:

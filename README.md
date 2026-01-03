@@ -6,11 +6,26 @@ Image-Parser je Python program pro automatickou extrakci křesťanských písní
 
 ## Instalace
 
+### Local Development
+
 ```bash
 git clone https://github.com/WorshipTool/image-parser.git && cd image-parser
 pip install -r requirements.txt
 python prepare.py
 ```
+
+### Docker (Recommended for Production)
+
+```bash
+# Quick start with Docker Compose
+cp .env.example .env
+# Edit .env and add OPENAI_API_KEY
+docker-compose up -d
+
+# Access server at http://localhost:6610
+```
+
+See [DOCKER.md](DOCKER.md) for complete Docker deployment guide.
 
 ## Použití
 

@@ -244,7 +244,6 @@ def final_smart_ai_fix(draft_song_text: str, cropped_image_data, debug: bool = F
     Returns:
         Dictionary with 'title' and 'sheetData' keys
     """
-    print("\n🔍 Step 1: OCR cleanup and chord validation...")
 
     # Save image to temp folder
     current_file = Path(__file__).resolve()
@@ -294,11 +293,6 @@ def final_smart_ai_fix(draft_song_text: str, cropped_image_data, debug: bool = F
         #         f.write(f"Title: {title}\n\n")
         #         f.write(final_sheet_data)
         #     print(f"  📝 Saved final output: {debug_path_after_step2}")
-
-        # Print total cost summary
-        from ai import get_price
-        price_info = get_price()
-        print(f"\n💵 Total AI cost: {price_info['cost_czk_formatted']} ({price_info['total_tokens']} tokens)\n")
 
         return {
             "title": title,

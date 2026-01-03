@@ -8,6 +8,10 @@ Integrates:
 - Sheet detection (YOLO-based detection for screenshots)
 """
 
+import warnings
+# Suppress all warnings including urllib3 OpenSSL warnings
+warnings.filterwarnings('ignore')
+
 import cv2
 import os
 import sys
@@ -127,21 +131,20 @@ Examples:
     end_time = time.time()
     elapsed_time = end_time - start_time
 
+    # Import after text_parser sets up the path
+    from ai import get_price
+    price = get_price()
+
     # Summary
     print(f"\n{'='*60}")
-    print(f"✓ Processed {len(args.images)} image(s)")
-    print(f"✓ Extracted {total_sheets} sheet(s)")
-    print(f"✓ Output directory: {output_dir.absolute()}")
-    print(f"✓ Total processing time: {elapsed_time:.2f}s")
+    print(f"✓ Processed {len(args.images)} image(s) | {total_sheets} sheet(s)  | {elapsed_time:.2f}s | {price['cost_czk_formatted']}")
     print('='*60)
 
     # Cleanup created files if not in debug mode
     if not args.debug and created_files:
-        print(f"\n🧹 Cleaning up {len(created_files)} temporary file(s)...")
         for file_path in created_files:
             try:
                 if os.path.exists(str(file_path)):
                     os.remove(str(file_path))
             except Exception as e:
                 print(f"Warning: Failed to remove {file_path}: {e}")
-        print("✓ Cleanup complete")

@@ -13,6 +13,11 @@ load_dotenv()
 PORT = os.getenv("PORT", 5000)
 HOST = os.getenv("HOST", None)
 
+# Add parent directory to path
+_current_dir = Path(__file__).parent
+_image_parser_root = _current_dir.parent
+sys.path.insert(0, str(_image_parser_root))
+
 # Connect to bridge (installed from git+https://github.com/WorshipTool/wt-bridge-module-python.git)
 try:
     from wt_bridge_module import start 

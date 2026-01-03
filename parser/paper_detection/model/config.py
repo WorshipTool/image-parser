@@ -9,6 +9,8 @@ from pathlib import Path
 # Determine paths relative to this file
 _CONFIG_DIR = Path(__file__).parent
 _MODULE_ROOT = _CONFIG_DIR.parent  # paper_detection directory
+_PARSER_ROOT = _MODULE_ROOT.parent  # parser directory
+_IMAGE_PARSER_ROOT = _PARSER_ROOT.parent  # image-parser root directory
 
 
 @dataclass
@@ -42,7 +44,7 @@ class ModelConfig:
     # Output paths (absolute paths based on module location)
     OUTPUT_DIR: Path = _CONFIG_DIR / "checkpoints"
     CHECKPOINT_DIR: Path = _CONFIG_DIR / "checkpoints" / "training"
-    DEBUG_DIR: Path = _MODULE_ROOT.parent / "temp" / "segmentation_debug"
+    DEBUG_DIR: Path = _IMAGE_PARSER_ROOT / "temp" / "segmentation_debug"
 
     # Model save path (absolute path)
     MODEL_PATH: Path = _CONFIG_DIR / "checkpoints" / "paper_segmentation_unet.pth"

@@ -13,15 +13,12 @@ load_dotenv()
 PORT = os.getenv("PORT", 5000)
 HOST = os.getenv("HOST", None)
 
-# Add parent directory to path for bridge module
-_current_dir = Path(__file__).parent
-_image_parser_root = _current_dir.parent
-sys.path.insert(0, str(_image_parser_root))
-
-# Connect to bridge
-import bridge
-bridge.start(PORT)
-
+# Connect to bridge (installed from git+https://github.com/WorshipTool/wt-bridge-module-python.git)
+try:
+    from wt_bridge_module import start 
+    start(PORT)
+except ImportError:
+    print("⚠️  Bridge module not installed. Server will run without service discovery.")
 
 app = Flask(__name__)
 

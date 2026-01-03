@@ -173,6 +173,10 @@ temp/
 
 .env
 
+# Bridge module (installed from git, not included in repo)
+bridge/
+bridge
+
 # Test output images
 paper_detection/tests/output/
 paper_detection/model/tests/output/

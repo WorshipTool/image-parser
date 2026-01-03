@@ -74,7 +74,8 @@ OPENAI_API_KEY=sk-your-openai-api-key
 PORT=6610
 HOST=0.0.0.0
 
-# Optional - Service Discovery
+# Optional - Service Discovery (requires wt-bridge-module)
+# Install: pip install git+https://github.com/WorshipTool/wt-bridge-module-python.git
 BRIDGE_URL=http://bridge-service:5555
 BRIDGE_SERVICE_NAME=docker-parser
 
@@ -82,6 +83,8 @@ BRIDGE_SERVICE_NAME=docker-parser
 REDIS_HOST=redis
 REDIS_PORT=6379
 ```
+
+**Note:** The bridge module for service discovery is optional. If not installed, the server will run normally without service discovery features.
 
 ### Volume Mounts
 

@@ -14,6 +14,8 @@ pip install -r requirements.txt
 python prepare.py
 ```
 
+**Note:** The requirements include the WorshipTool Bridge module for service discovery, which is installed directly from GitHub. This is optional - the server will run without it if not needed.
+
 ### Docker (Recommended for Production)
 
 ```bash

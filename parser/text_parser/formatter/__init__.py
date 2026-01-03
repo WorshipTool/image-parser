@@ -283,7 +283,7 @@ def format(dataData:list[ReadWordData], inputImagePath: str, cropedImageData, de
     data = sections_to_formatted_string(sections)
 
     # Apply final AI-based validation and correction
-    corrected_result = final_smart_ai_fix(data, cropedImageData)
+    corrected_result = final_smart_ai_fix(data, cropedImageData, debug=debug)
     if corrected_result.get("title"):
         title = corrected_result["title"]
     if corrected_result.get("sheetData"):

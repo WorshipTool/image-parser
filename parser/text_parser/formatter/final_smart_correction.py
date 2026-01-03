@@ -55,6 +55,7 @@ def _step1_ocr_cleanup(draft_song_text: str, image_path: str) -> dict:
         "- Lyrics MUST NEVER be inside square brackets.\n"
         "- If a square bracket does NOT form a valid chord, REMOVE the brackets and keep the text.\n"
         "- NEVER leave unclosed or dangling square brackets.\n\n"
+        "- if there are chords in square brackets, keep them as they are. DO NOT REMOVE VALID CHORDS\n\n"
 
         "YOUR TASKS:\n\n"
 
@@ -138,6 +139,7 @@ def _step2_section_correction(sheetData: str, title: str) -> dict:
 
         "SHEET FORMAT RULES:\n"
         "- Inline chords are in square brackets ONLY: [C], [Dm7], [F/A]\n"
+        "- Smallcased chords, like [e], [g]..., are okay, it means minor chords.\n"
         "- Section tags are in curly braces at the start of a line.\n\n"
 
         "VALID CHORD RULES (STRICT):\n"
@@ -146,6 +148,8 @@ def _step2_section_correction(sheetData: str, title: str) -> dict:
         "- If a bracketed token contains ANY other character (quotes, commas, weird symbols), fix if obvious.\n"
         "- If it cannot be fixed into a valid chord, REMOVE the whole chord token including brackets.\n"
         "- Never output lyrics inside [].\n"
+        "- IMPORTANT! DO NOT REMOVE CHORDS\n"
+        "- Chords can be even in section hints, keep them as they are. Only remove the section hint\n"
         "- Never output unclosed/dangling brackets.\n\n"
 
         "NOISE CLEANUP (STRICT):\n"
@@ -155,6 +159,7 @@ def _step2_section_correction(sheetData: str, title: str) -> dict:
 
         "HINT REMOVAL (IMPORTANT):\n"
         "- The input may contain structural hints like: 'Ref', 'Refrén', 'Chorus', 'Bridge', '1.', '2.', 'Verse', etc.\n"
+        "- If for example Ref is present, it indicates that the section is a chorus. Tag it with right section tag.\n"
         "- These hint words MUST NOT remain anywhere in the output.\n"
         "- If a line is only a hint, DELETE that line.\n"
         "- If a hint is embedded inside a lyric line, REMOVE only the hint part and keep the real lyric text.\n\n"
@@ -180,6 +185,7 @@ def _step2_section_correction(sheetData: str, title: str) -> dict:
         "  - at the end -> {O}\n"
         "  - between lyric sections -> {M}\n"
         "- Use {B} only if there is a clearly distinct lyrical/musical bridge.\n\n"
+        "NO SECTION CAN BE EMPTY"
 
         "TITLE RULES:\n"
         "- The title MUST be returned exactly as given in the input.\n"
@@ -201,6 +207,8 @@ def _step2_section_correction(sheetData: str, title: str) -> dict:
     )
 
     user_prompt = (
+        "Do not remove chords in square brackets in no way, if they are present.\n\n"
+        "Your main task is to fix section tags based on hints and clean up any remaining OCR noise.\n\n"
         f"INPUT TITLE:\n{title}\n\n"
         f"INPUT SHEETDATA:\n{sheetData}"
     )
@@ -220,7 +228,7 @@ def _step2_section_correction(sheetData: str, title: str) -> dict:
     return result
 
 
-def final_smart_ai_fix(draft_song_text: str, cropped_image_data) -> dict:
+def final_smart_ai_fix(draft_song_text: str, cropped_image_data, debug: bool = False) -> dict:
     """
     Apply final AI-based validation and correction to the full song sheet.
 
@@ -231,6 +239,7 @@ def final_smart_ai_fix(draft_song_text: str, cropped_image_data) -> dict:
     Args:
         draft_song_text: The draft song sheet text in custom format
         cropped_image_data: Full song page image (BGR format)
+        debug: If True, save intermediate texts to temp folder
 
     Returns:
         Dictionary with 'title' and 'sheetData' keys
@@ -247,6 +256,14 @@ def final_smart_ai_fix(draft_song_text: str, cropped_image_data) -> dict:
     output_path = temp_dir / f"full_song_{rand_suffix}.jpg"
     cv2.imwrite(str(output_path), cropped_image_data)
 
+    # Debug: Save text before step 1
+    if debug:
+        debug_path_before_step1 = temp_dir / f"text_00_before_step1_{rand_suffix}.txt"
+        with open(debug_path_before_step1, 'w', encoding='utf-8') as f:
+            f.write("=== DRAFT SONG TEXT (BEFORE STEP 1) ===\n\n")
+            f.write(draft_song_text)
+        print(f"  📝 Saved draft text: {debug_path_before_step1}")
+
     try:
         # STEP 1: OCR cleanup and chord validation (with image)
         step1_result = _step1_ocr_cleanup(draft_song_text, str(output_path))
@@ -254,12 +271,31 @@ def final_smart_ai_fix(draft_song_text: str, cropped_image_data) -> dict:
         final_sheet_data = step1_result.get("sheetData", draft_song_text)
         print("✅ Step 1 completed")
 
+        # Debug: Save text after step 1 (before step 2)
+        if debug:
+            debug_path_after_step1 = temp_dir / f"text_01_after_step1_{rand_suffix}.txt"
+            with open(debug_path_after_step1, 'w', encoding='utf-8') as f:
+                f.write("=== AFTER STEP 1: OCR CLEANUP ===\n\n")
+                f.write(f"Title: {title}\n\n")
+                f.write(final_sheet_data)
+            print(f"  📝 Saved step 1 output: {debug_path_after_step1}")
+
+        # TODO: Second step is not working well, remove chords and so on
         # STEP 2: Section structure correction (text-only)
-        print("🔍 Step 2: Section structure correction...")
-        step2_result = _step2_section_correction(final_sheet_data, title)
-        final_sheet_data = step2_result.get("sheetData", final_sheet_data)
-        title = step2_result.get("title", title)
-        print("✅ Step 2 completed")
+        # print("🔍 Step 2: Section structure correction...")
+        # step2_result = _step2_section_correction(text_after_step1, title)
+        # final_sheet_data = step2_result.get("sheetData", text_after_step1)
+        # title = step2_result.get("title", title)
+        # print("✅ Step 2 completed")
+
+        # Debug: Save text after step 2 (final)
+        # if debug:
+        #     debug_path_after_step2 = temp_dir / f"text_02_after_step2_FINAL_{rand_suffix}.txt"
+        #     with open(debug_path_after_step2, 'w', encoding='utf-8') as f:
+        #         f.write("=== AFTER STEP 2: SECTION CORRECTION (FINAL) ===\n\n")
+        #         f.write(f"Title: {title}\n\n")
+        #         f.write(final_sheet_data)
+        #     print(f"  📝 Saved final output: {debug_path_after_step2}")
 
         # Print total cost summary
         from ai import get_price

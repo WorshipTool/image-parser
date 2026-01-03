@@ -13,7 +13,7 @@ from typing import Tuple, Optional, Literal
 from typing import Optional, Tuple
 import numpy as np
 
-def orient_by_text(image: np.ndarray) -> Optional[Tuple[np.ndarray, int, float]]:
+def orient_by_text(image: np.ndarray, debug: bool = False) -> Optional[Tuple[np.ndarray, int, float]]:
     """
     Try rotations (0/90/180/270) and pick the one with the best OCR-based score,
     but using image_to_string (faster).
@@ -74,7 +74,8 @@ def orient_by_text(image: np.ndarray) -> Optional[Tuple[np.ndarray, int, float]]
 
     for angle, img_rot in rotations:
         score = score_for(img_rot)
-        print(f"Rotation {angle}°: score = {score:.2f}")
+        if debug:
+            print(f"  Angle {angle}°: score = {score}")
         if score > best_score:
             best_score = score
             best_angle = angle

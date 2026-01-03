@@ -269,7 +269,7 @@ def format(dataData:list[ReadWordData], inputImagePath: str, cropedImageData, de
     lines = read_word_list_to_lines(dataData)
 
     # Apply smart corrections
-    # lines = smart_lines_correction(lines, cropedImageData)
+    # lines = smart_lines_correction(lines, cropedImageData, debug=debug)
 
     # Save visualization of corrected lines with raw OCR data
     if debug:

@@ -13,7 +13,7 @@ from pathlib import Path
 from ai import send_prompt_with_schema
 
 
-def _step1_ocr_cleanup(draft_song_text: str, image_path: str) -> dict:
+def _step1_ocr_cleanup(draft_song_text: str, image_path: str, debug: bool = False) -> dict:
     """
     STEP 1: OCR cleanup and chord validation using the image.
 
@@ -269,7 +269,6 @@ def final_smart_ai_fix(draft_song_text: str, cropped_image_data, debug: bool = F
         step1_result = _step1_ocr_cleanup(draft_song_text, str(output_path))
         title = step1_result.get("title", "")
         final_sheet_data = step1_result.get("sheetData", draft_song_text)
-        print("✅ Step 1 completed")
 
         # Debug: Save text after step 1 (before step 2)
         if debug:
@@ -286,7 +285,6 @@ def final_smart_ai_fix(draft_song_text: str, cropped_image_data, debug: bool = F
         # step2_result = _step2_section_correction(text_after_step1, title)
         # final_sheet_data = step2_result.get("sheetData", text_after_step1)
         # title = step2_result.get("title", title)
-        # print("✅ Step 2 completed")
 
         # Debug: Save text after step 2 (final)
         # if debug:
@@ -310,3 +308,13 @@ def final_smart_ai_fix(draft_song_text: str, cropped_image_data, debug: bool = F
     except Exception as exc:
         print(f"❌ Final AI correction failed: {exc}\n")
         return {"title": "", "sheetData": draft_song_text}
+
+    finally:
+        # Clean up temporary image if not in debug mode
+        if not debug:
+            try:
+                import os
+                if os.path.exists(str(output_path)):
+                    os.remove(str(output_path))
+            except Exception as e:
+                print(f"Warning: Failed to clean up temp file: {e}")

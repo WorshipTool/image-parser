@@ -230,8 +230,7 @@ def send_prompt_with_schema(
     if response.usage:
         input_tokens = response.usage.prompt_tokens
         output_tokens = response.usage.completion_tokens
-        cost_czk = _track_usage(input_tokens, output_tokens)
-        print(f"💰 AI call cost: {cost_czk:.4f} Kč (in: {input_tokens}, out: {output_tokens}) | Total: {_total_cost_czk:.4f} Kč")
+        _track_usage(input_tokens, output_tokens)
 
     ret = response.choices[0].message.content
 

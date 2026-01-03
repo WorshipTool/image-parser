@@ -19,13 +19,14 @@ _line_counter = 0
 _counter_lock = threading.Lock()
 
 
-def smart_line_correction(line: Line, image: np.ndarray) -> Line:
+def smart_line_correction(line: Line, image: np.ndarray, debug: bool = False) -> Line:
     """
     Apply smart corrections to a single line
 
     Args:
         line: Line object to correct (with words in local cropped image coordinates)
         image: Cropped line image (BGR format)
+        debug: If True, keep temporary line images for debugging
 
     Returns:
         Corrected Line object (with words in local cropped image coordinates)
@@ -183,7 +184,15 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
             line.chordLinePossibility = 1.0 if result.get("isChordLine") else 0.0
     except Exception:  # Keep original line on AI failure
         pass  # Silently skip failed corrections
-
+    finally:
+        # Clean up temporary image if not in debug mode
+        if not debug:
+            try:
+                import os
+                if os.path.exists(str(output_path)):
+                    os.remove(str(output_path))
+            except Exception as e:
+                print(f"Warning: Failed to clean up temp file: {e}")
 
     # Filter out empty words
     line.words = [word for word in line.words if word.text.strip() != ""]
@@ -191,7 +200,7 @@ def smart_line_correction(line: Line, image: np.ndarray) -> Line:
     return line
 
 
-def smart_lines_correction(lines: List[Line], image: np.ndarray, max_workers: int = 4) -> List[Line]:
+def smart_lines_correction(lines: List[Line], image: np.ndarray, max_workers: int = 4, debug: bool = False) -> List[Line]:
     """
     Apply smart corrections to all lines in parallel
 
@@ -199,6 +208,7 @@ def smart_lines_correction(lines: List[Line], image: np.ndarray, max_workers: in
         lines: List of Line objects to correct
         image_bgr: Original image (BGR format) from which text was extracted
         max_workers: Maximum number of parallel workers (default: 4)
+        debug: If True, keep temporary line images for debugging
 
     Returns:
         List of corrected Line objects
@@ -227,7 +237,7 @@ def smart_lines_correction(lines: List[Line], image: np.ndarray, max_workers: in
                 word.bounds.top -= top
 
             # Apply AI correction (works with local coordinates)
-            corrected_line = smart_line_correction(local_line, croped_image)
+            corrected_line = smart_line_correction(local_line, croped_image, debug=debug)
 
             # Convert back to global coordinates
             for word in corrected_line.words:

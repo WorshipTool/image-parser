@@ -73,6 +73,9 @@ Examples:
     # Start timing
     start_time = time.time()
 
+    # Track created files for cleanup
+    created_files = []
+
     # Process images
     total_sheets = 0
     for image_path in args.images:
@@ -94,6 +97,7 @@ Examples:
             output_filename = f"{image_path.stem}_sheet.jpg"
             output_path = output_dir / output_filename
             cv2.imwrite(str(output_path), sheets[0])
+            created_files.append(output_path)
 
             if args.debug:
                 print(f"✓ Saved: {output_path}")
@@ -110,6 +114,8 @@ Examples:
                     f.write(f"Title: {text_result['title']}\n")
                     f.write("="*60 + "\n\n")
                     f.write(text_result['data'])
+
+                created_files.append(text_path)
 
                 if args.debug:
                     print(f"✓ Saved text: {text_path}")
@@ -128,3 +134,14 @@ Examples:
     print(f"✓ Output directory: {output_dir.absolute()}")
     print(f"✓ Total processing time: {elapsed_time:.2f}s")
     print('='*60)
+
+    # Cleanup created files if not in debug mode
+    if not args.debug and created_files:
+        print(f"\n🧹 Cleaning up {len(created_files)} temporary file(s)...")
+        for file_path in created_files:
+            try:
+                if os.path.exists(str(file_path)):
+                    os.remove(str(file_path))
+            except Exception as e:
+                print(f"Warning: Failed to remove {file_path}: {e}")
+        print("✓ Cleanup complete")

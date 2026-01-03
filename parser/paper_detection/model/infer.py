@@ -39,7 +39,7 @@ class SegmentationInference:
         self.model = self._load_model(model_path)
         self.model.eval()
 
-    def _load_model(self, model_path: Path) -> UNet:
+    def _load_model(self, model_path: Path, debug: bool = False) -> UNet:
         """Load trained model from checkpoint"""
         if not model_path.exists():
             raise FileNotFoundError(f"Model not found: {model_path}")
@@ -52,13 +52,14 @@ class SegmentationInference:
         checkpoint = torch.load(model_path, map_location=self.device)
         model.load_state_dict(checkpoint['model_state_dict'])
 
-        print(f"Model loaded from: {model_path}")
-        if 'epoch' in checkpoint:
-            print(f"  Epoch: {checkpoint['epoch']}")
-        if 'val_loss' in checkpoint:
-            print(f"  Val Loss: {checkpoint['val_loss']:.4f}")
-        if 'val_iou' in checkpoint:
-            print(f"  Val IoU: {checkpoint['val_iou']:.4f}")
+        if debug:
+            print(f"Model loaded from: {model_path}")
+            if 'epoch' in checkpoint:
+                print(f"  Epoch: {checkpoint['epoch']}")
+            if 'val_loss' in checkpoint:
+                print(f"  Val Loss: {checkpoint['val_loss']:.4f}")
+            if 'val_iou' in checkpoint:
+                print(f"  Val IoU: {checkpoint['val_iou']:.4f}")
 
         return model
 

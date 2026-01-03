@@ -1,4 +1,4 @@
-from common.bounds import Bounds
+from parser.bounds import Bounds
 
 class ReadWordData:
     def __init__(self, text: str, bounds: Bounds, confidence: float):

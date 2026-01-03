@@ -1,4 +1,4 @@
-from common.bounds import Bounds
+from parser.bounds import Bounds
 from .word import Word
 
 class Line:

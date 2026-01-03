@@ -166,7 +166,7 @@ def smart_line_correction(line: Line, image: np.ndarray, debug: bool = False) ->
         if tokens:
             # Import ReadWordData and Bounds
             from ..ocr.read_word_data import ReadWordData
-            from common.bounds import Bounds
+            from parser.bounds import Bounds
 
             # Replace line words with AI-detected tokens (in local coordinates)
             line.words = []
@@ -228,7 +228,7 @@ def smart_lines_correction(lines: List[Line], image: np.ndarray, max_workers: in
 
             # Convert line words to local coordinates before correction
             from ..ocr.read_word_data import ReadWordData
-            from common.bounds import Bounds
+            from parser.bounds import Bounds
             from copy import deepcopy
 
             local_line = deepcopy(line)

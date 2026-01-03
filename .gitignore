@@ -183,3 +183,5 @@ parser/tests/output/
 paper_detection/model/checkpoints/
 *.pth
 training_history.json
+
+.DS_Store

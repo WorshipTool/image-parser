@@ -7,7 +7,7 @@ from typing import List
 import numpy as np
 import cv2
 from pathlib import Path
-from ai import send_prompt_with_schema
+from parser.ai import send_prompt_with_schema
 from .line import Line
 import uuid
 from tqdm import tqdm

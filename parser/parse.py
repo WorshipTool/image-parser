@@ -9,6 +9,7 @@ Integrates:
 """
 
 import warnings
+
 # Suppress all warnings including urllib3 OpenSSL warnings
 warnings.filterwarnings('ignore')
 
@@ -16,6 +17,7 @@ import cv2
 import os
 import sys
 from pathlib import Path
+
 
 # Add current directory to path for submodules
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -125,9 +127,9 @@ Examples:
 
                 created_files.append(text_path)
 
-                if args.debug:
-                    print(f"✓ Saved text: {text_path}")
-                    print(f"  Title: {text_result['title']}")
+                print(f"{text_result['title']}")
+                print("-"*60)
+                print(f"{text_result['data']}")
 
             total_sheets += 1
 
@@ -136,7 +138,7 @@ Examples:
     elapsed_time = end_time - start_time
 
     # Import after text_parser sets up the path
-    from ai import get_price
+    from parser.ai import get_price
     price = get_price()
 
     # Summary

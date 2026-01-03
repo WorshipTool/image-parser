@@ -1,6 +1,8 @@
 import time
 from flask import Flask, Response, request, jsonify
 import os
+import sys
+from pathlib import Path
 
 
 # load envs
@@ -10,6 +12,11 @@ load_dotenv()
 
 PORT = os.getenv("PORT", 5000)
 HOST = os.getenv("HOST", None)
+
+# Add parent directory to path for bridge module
+_current_dir = Path(__file__).parent
+_image_parser_root = _current_dir.parent
+sys.path.insert(0, str(_image_parser_root))
 
 # Connect to bridge
 import bridge
@@ -23,9 +30,8 @@ app = Flask(__name__)
 from flask_cors import CORS
 CORS(app)
 
-current_directory = os.path.dirname(os.path.abspath(__file__))
-
-UPLOAD_FOLDER = os.path.join(current_directory, "tmp/uploads")
+# Set paths relative to image-parser root
+UPLOAD_FOLDER = os.path.join(str(_image_parser_root), "tmp/uploads")
 
 # Set the maximum file size to 50MB
 MEGABYTE = (2 ** 10) ** 2
@@ -58,17 +64,17 @@ app.register_blueprint(rq_dashboard.blueprint, url_prefix="/board")
 
 
 
-from server.tech import add_to_queue, save_files, get_job
+from tech import add_to_queue, save_files, get_job
 
 @app.route('/is-available', methods=['GET'])
-@swag_from("server/swagger/is-available.yml")
+@swag_from("swagger/is-available.yml")
 def is_available():
     return jsonify(isAvailable=True), 200
 
 
 
 @app.route('/parse-file', methods=['POST'])
-@swag_from("server/swagger/parse-file.yml")
+@swag_from("swagger/parse-file.yml")
 def parse_file():
 
     useAi = request.args.get('useAi', default="false").lower() == "true"
@@ -99,7 +105,7 @@ def parse_file():
     return result, 200
 
 @app.route('/add-file-to-parse-queue', methods=['POST'])
-@swag_from("server/swagger/parse-file.yml")
+@swag_from("swagger/parse-file.yml")
 def parse_file_stream():
     
     useAi = request.args.get('useAi', default="false").lower() == "true"
@@ -140,7 +146,7 @@ def getProgressData(job):
     return res
 
 @app.route("/get-job-status-stream", methods=['GET'])
-@swag_from("server/swagger/get-job-status.yml")
+@swag_from("swagger/get-job-status.yml")
 def get_job_status_stream():
     job_id = request.args.get('id')
     job = get_job(job_id)
@@ -173,7 +179,7 @@ def get_job_status_stream():
     return Response(stream(), mimetype='text/event-stream')
 
 @app.route("/get-job-result", methods=['GET'])
-@swag_from("server/swagger/get-job-status.yml")
+@swag_from("swagger/get-job-status.yml")
 def get_job_result():
     job_id = request.args.get('id')
     job = get_job(job_id)
@@ -196,8 +202,3 @@ def get_job_result():
 # Vytvoříme složku pro uploady, pokud neexistuje
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
-
-
-
-# Run app
-app.run(debug=True, port=PORT, host=HOST)

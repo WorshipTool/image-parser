@@ -14,14 +14,62 @@ python prepare.py
 
 ## Použití
 
+### CLI (Command Line Interface)
+
 ```bash
-python main.py -o output.json -i cesta_k_obrazku.jpg
-python main.py -o output.json -i obrazek1.jpg obrazek2.png
+# Basic usage - parse single image
+python main.py image.jpg
+
+# Multiple images
+python main.py img1.jpg img2.jpg img3.jpg
+
+# With AI corrections (slower but more accurate)
+python main.py image.jpg --ai
+
+# With debug output
+python main.py image.jpg --debug
+
+# Custom output directory
+python main.py *.jpg -o output/
+
+# All options
+python main.py image.jpg --ai --debug -o results/
 ```
 
 **Podporované formáty:** JPG, PNG
 
-**Poznámka:** AI analýza je vypnutá. Bude se používat samostatně pro částečný processing.
+### HTTP Server API
+
+```bash
+# Start server
+python -m server
+
+# Start worker (separate terminal)
+bash server/run_worker.sh
+```
+
+Server documentation: See `server/README.md`
+
+## Project Structure
+
+```
+image-parser/
+├── main.py                    # CLI entry point
+├── parser/                    # Parser module (CLI tool)
+│   ├── parse.py              # Main parser implementation
+│   ├── get_sheet_components.py
+│   ├── text_parser/          # OCR and text formatting
+│   ├── paper_detection/      # Paper detection and transformation
+│   ├── paper_transform/      # Perspective correction
+│   └── sheet_detection/      # YOLO-based sheet detection
+├── server/                    # HTTP API server
+│   ├── __main__.py           # Module entry point
+│   ├── app.py                # Flask application
+│   ├── api.py                # Parser API wrapper
+│   └── README.md             # Server documentation
+├── ai/                        # AI correction modules
+└── temp/                      # Temporary files (auto-created)
+```
 
 ## Jak to funguje
 

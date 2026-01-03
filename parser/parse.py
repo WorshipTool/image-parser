@@ -24,11 +24,10 @@ from get_sheet_components import get_sheet_components_from_image
 from text_parser import read_and_parse_image
 
 
-if __name__ == "__main__":
+def main():
     """
     Command line interface for parser
     """
-    import sys
     import argparse
     import time
 
@@ -153,3 +152,7 @@ Examples:
                     os.remove(str(file_path))
             except Exception as e:
                 print(f"Warning: Failed to remove {file_path}: {e}")
+
+
+if __name__ == "__main__":
+    main()

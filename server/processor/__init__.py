@@ -1,27 +1,33 @@
 
 
 import os
+import sys
 from typing import Generator
+from pathlib import Path
 
-from main import parse_images
+# Add parent paths
+_current_dir = Path(__file__).parent
+_server_dir = _current_dir.parent
+_image_parser_root = _server_dir.parent
+sys.path.insert(0, str(_image_parser_root))
+
+from server.api import parse_images
 from constants import TEMP_FOLDER
 
 UPLOAD_FOLDER = os.path.join(TEMP_FOLDER, "uploads")
 
 
 def parse_file_func(filePaths : list[str], useAi: bool) -> Generator[int, None, any]:
-    
+
     # Pokud soubor nemá název, vrátíme chybu
     if len(filePaths) == 0:
         return {"message":"No files"}
-    
+
     try:
         createdFiles = filePaths
 
-
-
-        # Zavoláme funkci pro zpracování obrázku
-        parseGen = parse_images(createdFiles, useAi=useAi)
+        # Zavoláme funkci pro zpracování obrázku pomocí nového parser API
+        parseGen = parse_images(createdFiles, use_ai=useAi, debug=False)
         result = None
 
         # Handle generator stream
@@ -39,13 +45,8 @@ def parse_file_func(filePaths : list[str], useAi: bool) -> Generator[int, None, 
             os.remove(file)
 
 
-        # Replace inputImagePath
-        for item in result:
-            # Get basename from the path
-            pathname = os.path.basename(item["inputImagePath"])
-            item["inputImagePath"] = pathname
-
-
+        # inputImagePath is already basename in new parser API
+        # No need to replace it
 
         return result
     except Exception as e:

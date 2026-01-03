@@ -67,6 +67,11 @@ Examples:
         action='store_true',
         help='Print debug information'
     )
+    parser.add_argument(
+        '--ai',
+        action='store_true',
+        help='Enable AI-based corrections (line_correction and final_smart_correction)'
+    )
 
     args = parser.parse_args()
 
@@ -107,7 +112,7 @@ Examples:
                 print(f"✓ Saved: {output_path}")
 
             # Parse text from the sheet
-            text_result = read_and_parse_image(sheets[0], debug=args.debug)
+            text_result = read_and_parse_image(sheets[0], debug=args.debug, use_ai=args.ai)
 
             if text_result:
                 # Save parsed text to file

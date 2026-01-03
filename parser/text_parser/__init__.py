@@ -27,7 +27,8 @@ from .formatter import format as format_sheet
 
 def read_and_parse_image(
     image: Union[str, Path, np.ndarray],
-    debug: bool = False
+    debug: bool = False,
+    use_ai: bool = False
 ) -> Optional[dict]:
     """
     Read text from image using OCR and parse into structured sheet format.
@@ -37,10 +38,12 @@ def read_and_parse_image(
     2. Parses words into lines and sections
     3. Detects chords using regex
     4. Formats output with chord positions
+    5. Optionally applies AI-based corrections
 
     Args:
         image: Input image path or numpy array (BGR format)
         debug: Print debug information
+        use_ai: Enable AI-based corrections (line_correction and final_smart_correction)
 
     Returns:
         dict with:
@@ -98,7 +101,7 @@ def read_and_parse_image(
     try:
         # Use the same data for both title and content parsing
         # formatter.format() will extract title from first lines
-        sheet = format_sheet( word_data, image_path, image_bgr, debug=debug)
+        sheet = format_sheet( word_data, image_path, image_bgr, debug=debug, use_ai=use_ai)
 
         if debug:
             print(f"  ✓ Parsed title: {sheet.title}")

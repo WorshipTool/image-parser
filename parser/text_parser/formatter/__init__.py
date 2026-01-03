@@ -261,15 +261,16 @@ def get_title(titleData: list[ReadWordData]) -> str:
     title, sections = get_title_from_sections(sections)
     return title
 
-def format(dataData:list[ReadWordData], inputImagePath: str, cropedImageData, debug: bool = False) -> Sheet:
+def format(dataData:list[ReadWordData], inputImagePath: str, cropedImageData, debug: bool = False, use_ai: bool = False) -> Sheet:
 
     title = get_title(dataData)
 
 
     lines = read_word_list_to_lines(dataData)
 
-    # Apply smart corrections
-    # lines = smart_lines_correction(lines, cropedImageData, debug=debug)
+    # Apply smart corrections if AI is enabled
+    # if use_ai:
+    #     lines = smart_lines_correction(lines, cropedImageData, debug=debug)
 
     # Save visualization of corrected lines with raw OCR data
     if debug:
@@ -282,11 +283,12 @@ def format(dataData:list[ReadWordData], inputImagePath: str, cropedImageData, de
     sections = split_lines_to_sections(lines)
     data = sections_to_formatted_string(sections)
 
-    # Apply final AI-based validation and correction
-    corrected_result = final_smart_ai_fix(data, cropedImageData, debug=debug)
-    if corrected_result.get("title"):
-        title = corrected_result["title"]
-    if corrected_result.get("sheetData"):
-        data = corrected_result["sheetData"]
+    # Apply final AI-based validation and correction if AI is enabled
+    if use_ai:
+        corrected_result = final_smart_ai_fix(data, cropedImageData, debug=debug)
+        if corrected_result.get("title"):
+            title = corrected_result["title"]
+        if corrected_result.get("sheetData"):
+            data = corrected_result["sheetData"]
 
     return Sheet(title, data, inputImagePath, cropedImageData)

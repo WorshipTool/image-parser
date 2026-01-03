@@ -10,7 +10,7 @@ using AI. It runs in two steps:
 import cv2
 import uuid
 from pathlib import Path
-from ai import send_prompt_with_schema
+from parser.ai import send_prompt_with_schema
 
 
 def _step1_ocr_cleanup(draft_song_text: str, image_path: str, debug: bool = False) -> dict:

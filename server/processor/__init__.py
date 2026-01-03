@@ -12,7 +12,7 @@ _image_parser_root = _server_dir.parent
 sys.path.insert(0, str(_image_parser_root))
 
 from server.api import parse_images
-from constants import TEMP_FOLDER
+from ..constants import TEMP_FOLDER
 
 UPLOAD_FOLDER = os.path.join(TEMP_FOLDER, "uploads")
 

@@ -5,7 +5,7 @@ redis_conn = redis.Redis(host='localhost', port=6379)
 
 # Prepare Queue
 from rq import Queue
-from ..constants import QUEUE_NAME
+from ..constants import QUEUE_NAME, TEMP_FOLDER
 q = Queue(QUEUE_NAME,connection=redis_conn)
 
 
@@ -21,7 +21,6 @@ def get_job(id: str):
 
 
 # Function for save received files to folder
-from constants import TEMP_FOLDER
 import os
 UPLOAD_FOLDER = os.path.join(TEMP_FOLDER, "uploads")
 def save_files(files: list):

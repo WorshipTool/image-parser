@@ -105,7 +105,6 @@ def parse_file():
     while True:
         # Refresh job stav
         job.refresh()
-        print("Job added to queue:", job)
         
         if job.is_finished:
             result = job.result

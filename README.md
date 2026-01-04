@@ -27,6 +27,29 @@ docker-compose up -d
 # Access server at http://localhost:6610
 ```
 
+#### Using Make Commands
+
+```bash
+# Setup and start
+make setup          # Create .env from template
+make build          # Build Docker images
+make up             # Start all services
+
+# Development
+make logs           # View all logs
+make logs-server    # View server logs only
+make logs-worker    # View worker logs only
+make shell-server   # Open shell in server container
+
+# Maintenance
+make restart        # Restart services
+make rebuild        # Rebuild and restart
+make clean          # Stop and remove everything
+
+# Get all available commands
+make help
+```
+
 See [DOCKER.md](DOCKER.md) for complete Docker deployment guide.
 
 ## Použití

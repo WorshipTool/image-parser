@@ -28,7 +28,9 @@ try:
             "serviceType": "image-parser",
             "bridgeUrl": bridge_url,
             "serviceName": service_name,
-            "servicePort": int(PORT)
+            "connectVia": {
+                "port": int(PORT)
+            }
         })
     else:
         print("⚠️  BRIDGE_URL not set. Server will run without service discovery.")

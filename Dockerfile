@@ -1,20 +1,10 @@
 # Image Parser Server - Docker Image
-FROM python:3.11-slim
+# Use existing working image and just replace OpenCV
+FROM image-parser-server:latest
 
-# Set working directory
-WORKDIR /app
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    tesseract-ocr \
-    tesseract-ocr-ces \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements first for better caching
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Replace opencv-python with opencv-python-headless to avoid libGL dependency
+RUN pip uninstall -y opencv-python opencv-contrib-python opencv-python-headless || true && \
+    pip install --no-cache-dir opencv-python-headless==4.8.1.78
 
 # Copy application code
 COPY . .

@@ -28,7 +28,11 @@ def get_job(id: str):
 # Function for save received files to folder
 import os
 UPLOAD_FOLDER = os.path.join(TEMP_FOLDER, "uploads")
+
 def save_files(files: list):
+    # Ensure upload directory exists
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
     createdFiles = []
     for file in files:
         filename = os.path.join(UPLOAD_FOLDER, generate_filename(file.filename))

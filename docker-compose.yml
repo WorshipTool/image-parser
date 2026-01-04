@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Redis database for job queue
   redis:
@@ -32,9 +30,6 @@ services:
       - REDIS_PORT=6379
     volumes:
       - ./temp:/app/temp
-      - ./parser:/app/parser
-      - ./server:/app/server
-      - ./ai:/app/ai
     depends_on:
       redis:
         condition: service_healthy
@@ -51,9 +46,6 @@ services:
       - REDIS_PORT=6379
     volumes:
       - ./temp:/app/temp
-      - ./parser:/app/parser
-      - ./server:/app/server
-      - ./ai:/app/ai
     depends_on:
       redis:
         condition: service_healthy

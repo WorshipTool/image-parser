@@ -20,10 +20,21 @@ sys.path.insert(0, str(_image_parser_root))
 
 # Connect to bridge (installed from git+https://github.com/WorshipTool/wt-bridge-module-python.git)
 try:
-    from wt_bridge_module import start 
-    start(PORT)
+    from wt_bridge_module import start
+    bridge_url = os.getenv("BRIDGE_URL")
+    service_name = os.getenv("BRIDGE_SERVICE_NAME", "image-parser")
+    if bridge_url:
+        start({
+            "bridgeUrl": bridge_url,
+            "serviceName": service_name,
+            "servicePort": int(PORT)
+        })
+    else:
+        print("⚠️  BRIDGE_URL not set. Server will run without service discovery.")
 except ImportError:
     print("⚠️  Bridge module not installed. Server will run without service discovery.")
+except Exception as e:
+    print(f"⚠️  Bridge connection failed: {e}. Server will run without service discovery.")
 
 app = Flask(__name__)
 
@@ -66,7 +77,7 @@ app.register_blueprint(rq_dashboard.blueprint, url_prefix="/board")
 
 
 
-from tech import add_to_queue, save_files, get_job
+from .tech import add_to_queue, save_files, get_job
 
 @app.route('/is-available', methods=['GET'])
 @swag_from("swagger/is-available.yml")
@@ -82,6 +93,7 @@ def parse_file():
     useAi = request.args.get('useAi', default="false").lower() == "true"
     files = request.files.getlist('file')
 
+
     paths = save_files(files)
 
 
@@ -93,6 +105,7 @@ def parse_file():
     while True:
         # Refresh job stav
         job.refresh()
+        print("Job added to queue:", job)
         
         if job.is_finished:
             result = job.result

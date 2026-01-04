@@ -2,9 +2,10 @@
 Perspective warp transformation for paper documents
 """
 
+from typing import Optional, Tuple
+
 import cv2
 import numpy as np
-from typing import Optional, Tuple
 
 
 def _order_corners(corners: np.ndarray) -> np.ndarray:

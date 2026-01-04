@@ -2,9 +2,10 @@
 Heatmap analysis for deciding whether to crop based on paper presence
 """
 
+from typing import Dict, Tuple
+
 import cv2
 import numpy as np
-from typing import Dict, Tuple
 
 
 def analyze_heatmap(

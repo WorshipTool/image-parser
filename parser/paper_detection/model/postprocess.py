@@ -2,9 +2,10 @@
 Post-processing for extracting corners from segmentation masks
 """
 
+from typing import Optional, Tuple
+
 import cv2
 import numpy as np
-from typing import Optional, Tuple
 
 
 def order_corners_clockwise(corners: np.ndarray) -> np.ndarray:

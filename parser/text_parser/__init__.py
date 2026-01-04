@@ -7,13 +7,15 @@ Takes an image and extracts structured text with chord positions.
 No preprocessing - just reads the image as-is.
 """
 
-import numpy as np
 import sys
-from typing import Optional, Union
 from pathlib import Path
+from typing import Optional, Union
+
 import cv2
+import numpy as np
 
 from parser.text_parser.preprocess import preprocess
+
 
 # Add parent directories to path for common module access
 _current_dir = Path(__file__).parent

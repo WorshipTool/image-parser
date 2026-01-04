@@ -1,22 +1,25 @@
-import requests
+"""
+AI module for OpenAI API integration and response normalization.
+"""
+
 import base64
 import json
-import re
-from typing import Any, Callable
-
-from openai import OpenAI
-from dotenv import load_dotenv
 import os
+import re
+from typing import Any
 
-# Načtení proměnných z .env souboru
+from dotenv import load_dotenv
+from openai import OpenAI
+
+
+# Load environment variables from .env file
 load_dotenv()
 
-# Nastavení API klíče
+# Set API key
 api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(
     api_key=api_key
 )
-from typing import Any
 
 # ============================================
 # PRICE TRACKING
@@ -38,18 +41,21 @@ _SCHEMA_KEYS = {
     "$schema", "$ref", "schema", "json_schema", "name"
 }
 
+
 def _looks_like_schema(d: dict) -> bool:
-    # typický JSON schema objekt
+    """Check if dict looks like a JSON schema object."""
+    # Typical JSON schema object
     if "type" in d and any(k in d for k in ("properties", "items", "oneOf", "anyOf", "allOf")):
         return True
-    # wrappery kolem schématu
+    # Wrappers around schema
     if "json_schema" in d and isinstance(d.get("json_schema"), dict):
         return True
     if "schema" in d and isinstance(d.get("schema"), dict):
         return True
-    # hodně schema-klíčů bez užitečných dat
+    # Many schema keys without useful data
     schema_key_hits = sum(1 for k in d.keys() if k in _SCHEMA_KEYS)
     return schema_key_hits >= max(3, len(d) // 2)
+
 
 def normalize_ai_result(obj: Any) -> Any:
     """
@@ -60,7 +66,7 @@ def normalize_ai_result(obj: Any) -> Any:
     Returns the most likely payload (dict/list/primitive).
     Raises ValueError if nothing usable found.
     """
-    # 1) list: zkus najít payload uvnitř
+    # 1) list: try to find payload inside
     if isinstance(obj, list):
         for item in obj:
             try:
@@ -71,7 +77,7 @@ def normalize_ai_result(obj: Any) -> Any:
 
     # 2) dict: unwrap schema-like
     if isinstance(obj, dict):
-        # common schema wrappers
+        # Common schema wrappers
         if "json_schema" in obj and isinstance(obj["json_schema"], dict):
             return normalize_ai_result(obj["json_schema"])
         if "schema" in obj and isinstance(obj["schema"], dict):
@@ -84,16 +90,16 @@ def normalize_ai_result(obj: Any) -> Any:
             if "items" in obj:
                 return normalize_ai_result(obj["items"])
 
-        # 3) single-key wrapper → unwrap (typicky {"result": {...}})
+        # 3) single-key wrapper → unwrap (typically {"result": {...}})
         if len(obj) == 1:
             (only_val,) = obj.values()
             return normalize_ai_result(only_val)
 
-        # 4) pokud to NEvypadá jako schema, ber to jako payload
+        # 4) if it doesn't look like schema, treat it as payload
         if not _looks_like_schema(obj):
             return obj
 
-        # 5) jinak DFS do hodnot
+        # 5) otherwise DFS into values
         for v in obj.values():
             try:
                 return normalize_ai_result(v)
@@ -102,7 +108,7 @@ def normalize_ai_result(obj: Any) -> Any:
 
         raise ValueError("No usable payload found in dict")
 
-    # 6) primitive (string/int/float/bool/None) – může být validní payload
+    # 6) primitive (string/int/float/bool/None) – can be valid payload
     if obj is None:
         raise ValueError("Payload is None")
     return obj
@@ -165,6 +171,15 @@ def restart_price():
 
 
 def encode_image(image_path):
+    """
+    Encode image file to base64 string.
+
+    Args:
+        image_path: Path to the image file
+
+    Returns:
+        Base64 encoded string of the image
+    """
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
@@ -239,8 +254,14 @@ def send_prompt_with_schema(
 
     return normalize_ai_result(json.loads(ret))
 
+
 def fix_json_input(malformed_json_string):
-    # Odstranění přebytečných čárek před uzavíracími závorkami
+    """
+    Fix common JSON formatting issues.
+
+    Removes trailing commas before closing brackets.
+    """
+    # Remove trailing commas before closing brackets
     malformed_json_string = re.sub(r',\s*([\]}])', r'\1', malformed_json_string)
     return malformed_json_string
 

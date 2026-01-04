@@ -2,11 +2,12 @@
 Inference module for paper segmentation
 """
 
-import torch
-import cv2
-import numpy as np
 from pathlib import Path
 from typing import Optional, Tuple
+
+import cv2
+import numpy as np
+import torch
 
 from paper_detection.model.config import ModelConfig
 from paper_detection.model.model import UNet

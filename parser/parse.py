@@ -13,11 +13,11 @@ import warnings
 # Suppress all warnings including urllib3 OpenSSL warnings
 warnings.filterwarnings('ignore')
 
-import cv2
 import os
 import sys
 from pathlib import Path
 
+import cv2
 
 # Add current directory to path for submodules
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

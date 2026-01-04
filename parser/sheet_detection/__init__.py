@@ -1,10 +1,15 @@
-from typing import Generator
-from PIL import Image
-import cv2 as cv
+"""
+Sheet detection module using YOLO for detecting sheet music components.
+"""
+
 import os
 import sys
+from typing import Generator
 
+import cv2 as cv
+from PIL import Image
 from ultralytics import YOLO
+
 
 # Setup paths
 current_directory = os.path.dirname(os.path.abspath(__file__))
@@ -24,6 +29,7 @@ model = None
 
 # Default model path (in image-parser root)
 DEFAULT_MODEL_PATH = os.path.join(grandparent_directory, "yolo8best.pt")
+
 
 def prepare_model(modelPath: str = None):
     """
@@ -75,38 +81,44 @@ def detect_simple(imagePath: str, show: bool = False) -> list[SongDetectGroup]:
             return e.value
 
 
-def detect(imagePath: str,show: bool = False) -> Generator[int, None, list[SongDetectGroup]]:
+def detect(imagePath: str, show: bool = False) -> Generator[int, None, list[SongDetectGroup]]:
+    """
+    Detect sheet music components with progress tracking.
 
-    yield 0; # 0% progress
+    Args:
+        imagePath: Path to image file
+        show: If True, display results in window
+
+    Yields:
+        int: Progress percentage
+
+    Returns:
+        List of SongDetectGroup objects
+    """
+    yield 0  # 0% progress
 
     if not modelReady:
         print("Model not ready. Please call prepare_model() first.")
         return []
 
-    yield 20; # 20% progress
+    yield 20  # 20% progress
 
     # Detect
     results = model.predict(imagePath)
 
+    yield 70  # 70% progress
 
-    yield 70; # 70% progress
-    
-    formattedResults : list[CustomDetect] = []
+    formattedResults: list[CustomDetect] = []
     for result in results:
         for box in result.boxes:
             formattedResults.append(CustomDetect(box, result))
 
-
-        
     for result in formattedResults:
         if show:
             windowName = "image" + str(result.bounds.left) + str(result.bounds.top)
             cv.imshow(windowName, result.image)
-            
-            
 
-    yield 90; # 90% progress
-        
+    yield 90  # 90% progress
 
     # Group results
     songDetectGroups = groupCustomDetect(formattedResults)
@@ -126,6 +138,18 @@ def detect(imagePath: str,show: bool = False) -> Generator[int, None, list[SongD
 
 
 def renderResults(image, results: list[SongDetectGroup], strokeWidth=2, fontSize=1):
+    """
+    Render detection results on image.
+
+    Args:
+        image: Input image
+        results: List of detected song groups
+        strokeWidth: Stroke width for rectangles
+        fontSize: Font size for labels
+
+    Returns:
+        Image with rendered results
+    """
     for group in results:
         for box in [group.title, group.data, group.sheet]:
             if not box:
@@ -138,17 +162,17 @@ def renderResults(image, results: list[SongDetectGroup], strokeWidth=2, fontSize
                         cv.FONT_HERSHEY_PLAIN, fontSize, (255, 0, 0), strokeWidth)
 
     return image
-    
 
 
 def launchRealTimeDetection():
+    """Launch real-time detection using webcam."""
     if not modelReady:
         print("Model not ready. Please call prepare_model() first.")
         return
 
     cap = cv.VideoCapture(0)
 
-    while(True):
+    while True:
         # Capture frame-by-frame
         ret, frame = cap.read()
 

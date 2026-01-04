@@ -9,7 +9,8 @@ job processing.
 import os
 import sys
 from pathlib import Path
-from typing import Generator, List, Dict, Optional
+from typing import Dict, Generator, List, Optional
+
 
 # Add paths for parser module access
 _current_dir = Path(__file__).parent

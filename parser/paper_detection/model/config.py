@@ -61,8 +61,8 @@ class ModelConfig:
     MIN_CONTOUR_AREA: int = 1000  # Minimum area for valid contour
     APPROX_EPSILON: float = 0.02  # Polygon approximation parameter
 
-    # AugmeGntation parameters
-    AUG_BRIHTNESS_CONTRAST_P: float = 0.5
+    # Augmentation parameters
+    AUG_BRIGHTNESS_CONTRAST_P: float = 0.5
     AUG_HUE_SAT_P: float = 0.3
     AUG_BLUR_P: float = 0.3
     AUG_NOISE_P: float = 0.3

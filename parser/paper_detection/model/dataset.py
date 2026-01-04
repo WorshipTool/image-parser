@@ -3,10 +3,11 @@ Dataset for paper segmentation with mask generation from corners
 """
 
 import json
+from pathlib import Path
+
 import cv2
 import numpy as np
 import torch
-from pathlib import Path
 from torch.utils.data import Dataset
 import albumentations as A
 from albumentations.pytorch import ToTensorV2

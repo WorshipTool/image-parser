@@ -1,12 +1,25 @@
+"""
+Helper utilities for processor module.
+"""
+
 import os
 import uuid
 
 
 def generate_filename(filename):
-    # Získání přípony souboru
+    """
+    Generate random filename preserving extension.
+
+    Args:
+        filename: Original filename
+
+    Returns:
+        Random filename with original extension
+    """
+    # Extract file extension
     file_extension = os.path.splitext(filename)[1]
-    
-    # Generování náhodného názvu s uuid a přidání původní přípony
+
+    # Generate random name with UUID and add original extension
     random_filename = str(uuid.uuid4()) + file_extension
-    
+
     return random_filename

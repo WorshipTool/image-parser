@@ -1,4 +1,3 @@
-
 """
 Detector for extracting sheet components from images
 
@@ -9,13 +8,15 @@ Integrates:
 - Sheet detection (YOLO-based detection for screenshots)
 """
 
-import cv2
-import numpy as np
 import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import  Union
+from typing import Union
+
+import cv2
+import numpy as np
+
 
 # Add current directory to path for submodules
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -148,14 +149,10 @@ def get_sheet_components_from_image(
     should_crop = detection_result['shouldCrop']
     corners = detection_result['corners']
 
-
-
     # If no paper detected, likely a screenshot - just return
     if not should_crop:
         image_bgr = _detect_and_merge_sheets(image_bgr, debug=debug)
         return [image_bgr]
-    
-
 
     # Step 2: Perspective Correction
     try:

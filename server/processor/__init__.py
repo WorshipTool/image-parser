@@ -1,9 +1,13 @@
-
+"""
+Job processor for parsing image files.
+"""
 
 import os
 import sys
-from typing import Generator
 from pathlib import Path
+from typing import Generator
+
+from rq import get_current_job
 
 # Add parent paths
 _current_dir = Path(__file__).parent
@@ -17,33 +21,43 @@ from ..constants import TEMP_FOLDER
 UPLOAD_FOLDER = os.path.join(TEMP_FOLDER, "uploads")
 
 
-def parse_file_func(filePaths : list[str], useAi: bool) -> Generator[int, None, any]:
+def parse_file_func(file_paths: list[str], use_ai: bool) -> Generator:
+    """
+    Process image files and parse their content.
 
-    # Pokud soubor nemá název, vrátíme chybu
-    if len(filePaths) == 0:
-        return {"message":"No files"}
+    Args:
+        file_paths: List of file paths to process
+        use_ai: Whether to use AI-based corrections
+
+    Yields:
+        int: Progress percentage
+
+    Returns:
+        Parsed results or error message
+    """
+    # If no files provided, return error
+    if len(file_paths) == 0:
+        return {"message": "No files"}
 
     try:
-        createdFiles = filePaths
+        created_files = file_paths
 
-        # Zavoláme funkci pro zpracování obrázku pomocí nového parser API
-        parseGen = parse_images(createdFiles, use_ai=useAi, debug=False)
+        # Call parsing function using new parser API
+        parse_gen = parse_images(created_files, use_ai=use_ai, debug=False)
         result = None
 
         # Handle generator stream
         while True:
             try:
-                progress = next(parseGen)
+                progress = next(parse_gen)
                 yield progress
             except StopIteration as e:
                 result = e.value
                 break
 
-
         # Delete the uploaded files
-        for file in createdFiles:
+        for file in created_files:
             os.remove(file)
-
 
         # inputImagePath is already basename in new parser API
         # No need to replace it
@@ -51,23 +65,28 @@ def parse_file_func(filePaths : list[str], useAi: bool) -> Generator[int, None, 
         return result
     except Exception as e:
         # Delete the uploaded files
-        for file in createdFiles:
+        for file in created_files:
             if os.path.exists(file):
                 os.remove(file)
 
         print(e)
 
-        return {"message":str(e)}
+        return {"message": str(e)}
 
 
+def processor(files: list, use_ai: bool):
+    """
+    Redis queue processor for file parsing jobs.
 
+    Args:
+        files: List of file paths to process
+        use_ai: Whether to use AI-based corrections
 
-
-# Function called from Redis
-from rq import get_current_job
-def processor(files: list, useAi: bool):
+    Returns:
+        Parsed results
+    """
     job = get_current_job()
-    gen = parse_file_func(files, useAi)
+    gen = parse_file_func(files, use_ai)
 
     while True:
         try:
@@ -75,9 +94,5 @@ def processor(files: list, useAi: bool):
             job.meta['progress'] = progress
             job.save_meta()
 
-
         except StopIteration as e:
             return e.value
-
-
-

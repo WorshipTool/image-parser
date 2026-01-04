@@ -2,9 +2,10 @@
 Paper detector for images
 """
 
-import numpy as np
 from pathlib import Path
 from typing import Optional
+
+import numpy as np
 
 from paper_detection.model.infer import SegmentationInference
 

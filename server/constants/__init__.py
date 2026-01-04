@@ -1,4 +1,7 @@
-import os
+"""
+Server constants configuration.
+"""
+
 from pathlib import Path
 
 # Server constants

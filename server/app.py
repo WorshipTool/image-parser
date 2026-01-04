@@ -35,7 +35,7 @@ try:
 except ImportError:
     print("⚠️  Bridge module not installed. Server will run without service discovery.")
 except Exception as e:
-    print(f"⚠️  Bridge connection failed: {e}. Server will run without service discovery.")
+    print(f"⚠️  Bridge connection failed. Server will run without service discovery.")
 
 app = Flask(__name__)
 

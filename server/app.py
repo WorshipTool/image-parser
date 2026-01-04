@@ -25,6 +25,7 @@ try:
     service_name = os.getenv("BRIDGE_SERVICE_NAME", "image-parser")
     if bridge_url:
         start({
+            "serviceType": "image-parser",
             "bridgeUrl": bridge_url,
             "serviceName": service_name,
             "servicePort": int(PORT)
@@ -44,7 +45,7 @@ from flask_cors import CORS
 CORS(app)
 
 # Set paths relative to image-parser root
-UPLOAD_FOLDER = os.path.join(str(_image_parser_root), "tmp/uploads")
+UPLOAD_FOLDER = os.path.join(str(_image_parser_root), "temp/uploads")
 
 # Set the maximum file size to 50MB
 MEGABYTE = (2 ** 10) ** 2

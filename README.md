@@ -19,38 +19,24 @@ python prepare.py
 ### Docker (Recommended for Production)
 
 ```bash
-# Quick start with Docker Compose
+# Setup
 cp .env.example .env
-# Edit .env and add OPENAI_API_KEY
-docker-compose up -d
+# Edit .env and add OPENAI_API_KEY (optional, for AI corrections)
+
+# Build and start
+docker compose build
+docker compose up -d
 
 # Access server at http://localhost:6610
+# Swagger docs at http://localhost:6610/docs
+# RQ Dashboard at http://localhost:6610/board
+
+# View logs
+docker compose logs -f
+
+# Stop services
+docker compose down
 ```
-
-#### Using Make Commands
-
-```bash
-# Setup and start
-make setup          # Create .env from template
-make build          # Build Docker images
-make up             # Start all services
-
-# Development
-make logs           # View all logs
-make logs-server    # View server logs only
-make logs-worker    # View worker logs only
-make shell-server   # Open shell in server container
-
-# Maintenance
-make restart        # Restart services
-make rebuild        # Rebuild and restart
-make clean          # Stop and remove everything
-
-# Get all available commands
-make help
-```
-
-See [DOCKER.md](DOCKER.md) for complete Docker deployment guide.
 
 ## Použití
 
@@ -78,14 +64,15 @@ python main.py image.jpg --ai --debug -o results/
 
 **Podporované formáty:** JPG, PNG
 
-### HTTP Server API
+### HTTP Server API (Local Development)
 
 ```bash
+# Requires Redis running locally
 # Start server
 python -m server
 
 # Start worker (separate terminal)
-bash server/run_worker.sh
+python -m server.worker
 ```
 
 Server documentation: See `server/README.md`

@@ -35,5 +35,9 @@ EXPOSE 6610
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
+# Health check - verify server is responding
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:6610/is-available')" || exit 1
+
 # Default command (can be overridden in docker-compose)
 CMD ["python", "-m", "server"]

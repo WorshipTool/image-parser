@@ -2,6 +2,7 @@
 Flask server application for image parser.
 """
 
+import json
 import os
 import sys
 import time
@@ -55,7 +56,9 @@ swagger = Swagger(app, swagger_config, merge=True)
 # Queue dashboard
 import rq_dashboard
 app.config.from_object("rq_dashboard.default_settings")
-app.config["RQ_DASHBOARD_REDIS_URL"] = "redis://127.0.0.1:6379"
+redis_host = os.getenv('REDIS_HOST', 'localhost')
+redis_port = int(os.getenv('REDIS_PORT', 6379))
+app.config["RQ_DASHBOARD_REDIS_URL"] = f"redis://{redis_host}:{redis_port}"
 rq_dashboard.web.setup_rq_connection(app)
 app.register_blueprint(rq_dashboard.blueprint, url_prefix="/board")
 
@@ -145,7 +148,7 @@ def get_progress_data(job):
         "status": status
     }
     eventName = "progress"
-    res = f"event: {eventName}\ndata: {data}\n\n"
+    res = f"event: {eventName}\ndata: {json.dumps(data)}\n\n"
     return res
 
 
@@ -177,10 +180,10 @@ def get_job_status_stream():
                     "useAi": use_ai
                 }
 
-                yield f"event: final\ndata: {data}\n\n"
+                yield f"event: final\ndata: {json.dumps(data)}\n\n"
                 break
             if job.is_failed:
-                yield f"data: {job.exc_info}\n\n"
+                yield f"event: error\ndata: {json.dumps({'error': str(job.exc_info)})}\n\n"
                 break
 
             time.sleep(0.2)

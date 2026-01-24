@@ -65,7 +65,6 @@ server/
 - API endpoint routing
 - Swagger UI integration (`/docs`)
 - RQ Dashboard integration (`/board`)
-- Service bridge registration (heartbeat)
 
 **`api.py`** - Parser wrapper API
 - `parse_images(paths, use_ai, debug)` - Batch image processing with progress
@@ -197,10 +196,6 @@ GET /get-job-result?id=550e8400-e29b-41d4-a716-446655440000
 ```bash
 # OpenAI API (required if useAi=true)
 OPENAI_API_KEY=sk-...
-
-# Service Discovery Bridge
-BRIDGE_URL=http://localhost:5555
-BRIDGE_SERVICE_NAME=local-parser
 
 # Server Configuration
 PORT=6610

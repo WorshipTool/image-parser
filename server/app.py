@@ -22,27 +22,6 @@ _current_dir = Path(__file__).parent
 _image_parser_root = _current_dir.parent
 sys.path.insert(0, str(_image_parser_root))
 
-# Connect to bridge (installed from git+https://github.com/WorshipTool/wt-bridge-module-python.git)
-try:
-    from wt_bridge_module import start
-    bridge_url = os.getenv("BRIDGE_URL")
-    service_name = os.getenv("BRIDGE_SERVICE_NAME", "image-parser")
-    if bridge_url:
-        start({
-            "serviceType": "image-parser",
-            "bridgeUrl": bridge_url,
-            "serviceName": service_name,
-            "connectVia": {
-                "port": int(PORT)
-            }
-        })
-    else:
-        print("⚠️  BRIDGE_URL not set. Server will run without service discovery.")
-except ImportError:
-    print("⚠️  Bridge module not installed. Server will run without service discovery.")
-except Exception:
-    print("⚠️  Bridge connection failed. Server will run without service discovery.")
-
 app = Flask(__name__)
 
 # Enable CORS for all routes

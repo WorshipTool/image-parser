@@ -32,11 +32,11 @@ python -m server.worker              # Start RQ worker (separate terminal)
 ### Docker Deployment
 
 ```bash
-make setup                           # Create .env from template
-make build                           # Build images
-make up                              # Start services (server + worker + redis)
-make logs                            # View all logs
-make rebuild                         # Rebuild and restart
+cp .env.example .env                 # Create .env from template
+docker compose build                 # Build images
+docker compose up -d                 # Start services (server + worker + redis)
+docker compose logs -f               # View all logs
+docker compose down                  # Stop services
 ```
 
 ### Testing
@@ -44,8 +44,6 @@ make rebuild                         # Rebuild and restart
 ```bash
 pytest                               # Run all tests
 pytest parser/text_parser/tests/     # Run specific test module
-make test                            # Health check (Docker)
-make test-upload                     # Test file upload (Docker)
 ```
 
 ## Architecture
@@ -101,7 +99,6 @@ JSON with `title` field and `data` containing formatted text with inline chords 
 OPENAI_API_KEY=...          # Optional, for AI corrections
 PORT=6610                   # Server port
 REDIS_HOST=redis            # Redis host (default for Docker)
-BRIDGE_URL=...              # Optional, WorshipTool service discovery
 ```
 
 ## API Endpoints

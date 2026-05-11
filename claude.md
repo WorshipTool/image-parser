@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Write all code comments, documentation, and descriptions in English, regardless of the language used in questions or requests. Never create git commits or perform any git write operations - git is read-only.
 
+## Skills
+
+Project-specific skills are in `.claude/skills/`. Load them when relevant:
+
+- **`ml-model-deployment`** — use when working with model files (`*.pt`, `*.pth`), updating trained models, or troubleshooting CI build issues related to missing models.
+
 ## Project Overview
 
 Image-Parser is a Python service that extracts Christian hymn/song information from photographs. It detects songs using YOLO8, performs OCR with Tesseract, and structures results into JSON for the Chvalotce.cz web application. Part of the WorshipTool ecosystem.

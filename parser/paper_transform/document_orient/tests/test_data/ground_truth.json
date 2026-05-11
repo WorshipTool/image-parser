@@ -1,0 +1,17 @@
+{
+    "test_orient_00.jpg": {
+        "expected_rotation": 180
+    },
+    "test_orient_01.jpg": {
+        "expected_rotation": 90
+    },
+    "test_orient_02.jpg": {
+        "expected_rotation": 0
+    },
+    "test_orient_03.jpg": {
+        "expected_rotation": -90
+    },
+    "test_orient_04.jpg": {
+        "expected_rotation": 0
+    }
+}

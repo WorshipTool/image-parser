@@ -1,0 +1,65 @@
+name: Deploy to production
+
+env:
+    DOCKER_IMAGE_NAME: wt-image-parser
+    MODELS_RELEASE_TAG: v1-models
+
+on:
+    workflow_dispatch:
+    push:
+        branches: ["main"]
+
+jobs:
+    upload-to-docker:
+        runs-on: ubuntu-latest
+        timeout-minutes: 90
+        permissions:
+            contents: read  # needed for gh release download
+            packages: read
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Download model weights
+              run: |
+                  gh release download ${{ env.MODELS_RELEASE_TAG }} \
+                    --pattern "yolo8best.pt" \
+                    --dir .
+                  mkdir -p parser/paper_detection/model/checkpoints
+                  gh release download ${{ env.MODELS_RELEASE_TAG }} \
+                    --pattern "paper_segmentation_unet.pth" \
+                    --dir parser/paper_detection/model/checkpoints
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Set up QEMU (pro emulaci cizí arch)
+              uses: docker/setup-qemu-action@v3
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Free disk space
+              run: |
+                  sudo rm -rf /usr/share/dotnet
+                  sudo rm -rf /opt/ghc
+                  sudo rm -rf /usr/local/share/boost
+                  sudo apt-get clean
+                  docker system prune -af
+
+            - name: Login to Docker Hub
+              uses: docker/login-action@v3
+              with:
+                  username: ${{ secrets.DOCKERHUB_USERNAME }}
+                  password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+            - name: Build & Push (multi-arch)
+              uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  push: true
+                  platforms: linux/amd64,linux/arm64
+                  tags: |
+                      ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+                      ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+                  cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:buildcache
+                  cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:buildcache,mode=max
+                  provenance: false
